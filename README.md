@@ -62,3 +62,14 @@ UARTを選択するとバスの内容が「すべて」取得できます。
 ## 0xF018 - 0xF01F No-Decode bank2
 1になったデータビットに対応したセグメントが点灯  
 0xF004 Display modeに0x02(=Select bank2)を書き込むと表示更新
+
+
+## 参考）EMUZ80
+EUMZ80はZ80CPUとPIC18F47Q43のDIP40ピンIC2つで構成されるシンプルなコンピュータです。
+
+![EMUZ80](https://github.com/satoshiokue/EMUZ80-6502/blob/main/imgs/IMG_Z80.jpeg)
+
+電脳伝説 - EMUZ80が完成  
+https://vintagechips.wordpress.com/2022/03/05/emuz80_reference  
+EMUZ80専用プリント基板 - オレンジピコショップ  
+https://store.shopping.yahoo.co.jp/orangepicoshop/pico-a-051.html
