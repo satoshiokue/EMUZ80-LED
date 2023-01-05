@@ -1,7 +1,12 @@
 # EMUZ80-LED
-EMUZ80に7セグメントLEDを増設します。  
+MEZ80LED基板でEMUZ80に増設した7セグメントLEDの制御を追加したファームウェアです。
 
 LED制御レジスタを0xF000 - 0xF01Fに配置します。
+
+MEZ80LED  
+https://github.com/satoshiokue/MEZ80LED
+
+LEDを制御するとき、PICは/BUSREQでZ80を停止させます。
 
 ## トレースモード
 0xF006 Trace modeで表示方法を選択、0xF004 Display modeを0x04にするとトレースモードに入ります。  
