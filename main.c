@@ -535,9 +535,6 @@ void main(void) {
 	ledwrite(0x09, 0x00);	// No decode for digits 0-7
 	led_off();
 
-	LED_CTL[4] = 0;
-	LED_CTL[6] = 3;
-
     LATE1 = 1;		// Release reset
 
     while(1);
