@@ -49,6 +49,9 @@ UARTを選択するとバスの内容が「すべて」取得できます。
 |0x02| UART  
 |0x03| LED & UART  
 
-## 0xF010 - 0xF017 No-Decode Mode bank1
-
-## 0xF018 - 0xF01F No-Decode Mode bank2
+## 0xF010 - 0xF017 No-Decode bank1
+1になったデータビットに対応したセグメントが点灯  
+0xF004 Display modeに0x01(=Select bank1)を書き込むと表示更新
+## 0xF018 - 0xF01F No-Decode bank2
+1になったデータビットに対応したセグメントが点灯  
+0xF004 Display modeに0x02(=Select bank2)を書き込むと表示更新
