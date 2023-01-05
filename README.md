@@ -3,6 +3,8 @@ MEZ80LED基板でEMUZ80に増設した7セグメントLEDの制御を追加し�
 
 LED制御レジスタを0xF000 - 0xF01Fに配置します。
 
+![MEZ80LED](https://github.com/satoshiokue/EMUZ80-LED/blob/main/MEZ80LED.jpeg)
+
 MEZ80LED  
 https://github.com/satoshiokue/MEZ80LED
 
