@@ -9,7 +9,40 @@ LED制御レジスタを0xF000 - 0xF01Fに配置します。
 MEZ80LED  
 https://github.com/satoshiokue/MEZ80LED
 
-LEDを制御するとき、PICは/BUSREQでZ80を停止させます。
+LEDを制御するとき、PICは/BUSREQでZ80を停止させます。  
+
+ソースコードは電脳伝説さんのEMUZ80用main.cを元に改変してGPLライセンスに基づいて公開するものです。
+
+## ファームウェア
+EMUZ80で配布されているフォルダemuz80.X下のmain.cと置き換えて使用してください。  
+ターゲットのPICを適切に変更してビルドしてください。  
+
+
+## アドレスマップ
+```
+ROM   0x0000 - 0x3FFF 16Kbytes
+RAM   0x8000 - 0x8FFF 4Kbytes (0x9FFF 8Kbytes:PIC18F47Q84,PIC18F47Q83)
+
+UART  0xE000   Data REGISTER
+      0xE001   Control REGISTER
+
+LED   0xF000 - 0xF01F
+```
+
+## PICプログラムの書き込み
+EMUZ80技術資料8ページにしたがってPICに適合するemuz80led_Qxx.hexファイルを書き込んでください。  
+
+PIC18F47Q43 emuz80led_Q43.hex  
+PIC18F47Q83 emuz80led_Q8x.hex  
+PIC18F47Q84 emuz80led_Q8x.hex  
+
+## Z80プログラムの改編
+バイナリデータをテキストデータ化してファームウェアの配列rom[]に格納するとZ80で実行できます。
+
+テキスト変換例
+```
+xxd -i -c16 foo.bin > foo.txt
+```
 
 ## トレースモード
 0xF006 Trace modeで表示方法を選択、0xF004 Display modeを0x04にするとトレースモードに入ります。  
