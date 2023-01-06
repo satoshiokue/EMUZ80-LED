@@ -296,9 +296,9 @@ void __interrupt(irq(CLC1),base(8)) CLC_ISR(){
 
 		if(LED_CTL[4] == 0x04) {			// Trace mode
 			if(LED_CTL[6] & 0x01)
-				led_disp_bus(ab.w,PORTC,0);
+				led_disp_bus(ab.w,rd_data,0);
 			if(LED_CTL[6] & 0x02)
-				printf("RD ADDR:%04X,DATA:%02X\r\n",ab.w,PORTC);
+				printf("RD ADDR:%04X,DATA:%02X\r\n",ab.w,rd_data);
 		}
 		LATC = rd_data;
 		// Release wait (D-FF reset)
