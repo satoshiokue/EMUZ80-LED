@@ -14,7 +14,7 @@ LEDを制御するとき、PICは/BUSREQでZ80を停止させます。
 ソースコードは電脳伝説さんのEMUZ80用main.cを元に改変してGPLライセンスに基づいて公開するものです。
 
 ## ファームウェア
-EMUZ80で配布されているフォルダemuz80.X下のmain.cと置き換えて使用してください。  
+emuz80_led.cをEMUZ80で配布されているフォルダemuz80.X下のmain.cと置き換えて使用してください。  
 ターゲットのPICを適切に変更してビルドしてください。  
 
 
@@ -32,9 +32,17 @@ LED   0xF000 - 0xF01F
 ## PICプログラムの書き込み
 EMUZ80技術資料8ページにしたがってPICに適合するemuz80led_Qxx.hexファイルを書き込んでください。  
 
+またはArduino UNOを用いてPICを書き込みます。  
+https://github.com/satoshiokue/Arduino-PIC-Programmer
+
 PIC18F47Q43 emuz80led_Q43.hex  
 PIC18F47Q83 emuz80led_Q8x.hex  
 PIC18F47Q84 emuz80led_Q8x.hex  
+
+DEMO LEDトレースモードで起動します
+PIC18F47Q43 emuz80led_DEMO_Q43.hex  
+PIC18F47Q83 emuz80led_DEMO_Q8x.hex  
+PIC18F47Q84 emuz80led_DEMO_Q8x.hex  
 
 ## Z80プログラムの改編
 バイナリデータをテキストデータ化してファームウェアの配列rom[]に格納するとZ80で実行できます。
