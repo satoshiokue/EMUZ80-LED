@@ -39,7 +39,7 @@ PIC18F47Q43 emuz80led_Q43.hex
 PIC18F47Q83 emuz80led_Q8x.hex  
 PIC18F47Q84 emuz80led_Q8x.hex  
 
-DEMO LEDトレースモードで起動します
+DEMO LEDトレースモードで起動します  
 PIC18F47Q43 emuz80led_DEMO_Q43.hex  
 PIC18F47Q83 emuz80led_DEMO_Q8x.hex  
 PIC18F47Q84 emuz80led_DEMO_Q8x.hex  
