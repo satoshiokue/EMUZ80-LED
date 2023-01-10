@@ -116,7 +116,22 @@ UARTを選択するとバスの内容が「すべて」取得できます。
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Segment Line|DP|A|B|C|F|E|F|G|
 
+## BASICによる制御例
 
+LED全点灯、消灯
+```
+POKE &HF000,255
+POKE &HF000,0
+```
+
+&HF000-&HF003の値をLEDに表示
+```
+POKE &HF004,3
+POKE &HF000,&h12
+POKE &HF001,&h34
+POKE &HF002,&hAB
+POKE &HF003,&hCD
+```
 
 ## 参考）EMUZ80
 EUMZ80はZ80CPUとPIC18F47Q43のDIP40ピンIC2つで構成されるシンプルなコンピュータです。
