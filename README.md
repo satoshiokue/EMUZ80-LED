@@ -9,7 +9,7 @@ LED制御レジスタを0xF000 - 0xF01Fに配置します。
 MEZ80LED  
 https://github.com/satoshiokue/MEZ80LED
 
-LEDを制御するとき、PICは/BUSREQでZ80を停止させます。  
+PICはZ80を/BUSREQで停止させてLEDを制御します。  
 
 ソースコードは電脳伝説さんのEMUZ80用main.cを元に改変してGPLライセンスに基づいて公開するものです。
 
