@@ -35,14 +35,26 @@ EMUZ80技術資料8ページにしたがってPICに適合するemuz80led_Qxx.he
 またはArduino UNOを用いてPICを書き込みます。  
 https://github.com/satoshiokue/Arduino-PIC-Programmer
 
+BASIC
 PIC18F47Q43 emuz80led_Q43.hex  
 PIC18F47Q83 emuz80led_Q8x.hex  
 PIC18F47Q84 emuz80led_Q8x.hex  
 
-DEMO LEDトレースモードで起動します  
+DEMO LEDトレースモードでBASICを起動します  
 PIC18F47Q43 emuz80led_DEMO_Q43.hex  
 PIC18F47Q83 emuz80led_DEMO_Q8x.hex  
 PIC18F47Q84 emuz80led_DEMO_Q8x.hex  
+
+Universal Monitor Z80  
+PIC18F47Q43 emuz80led_DEMO_Q43.hex  
+PIC18F47Q83 emuz80led_DEMO_Q8x.hex  
+PIC18F47Q84 emuz80led_DEMO_Q8x.hex  
+
+MITライセンスのUniversal MonitorをEMUZ80用に改変してhexファイル化しました。  
+Universal Monitor  
+https://electrelic.com/electrelic/node/1317
+
+変更点はunimon_z80フォルダを参照してください。  
 
 ## Z80プログラムの改編
 バイナリデータをテキストデータ化してファームウェアの配列rom[]に格納するとZ80で実行できます。
