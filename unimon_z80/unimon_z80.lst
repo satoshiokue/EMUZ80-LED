@@ -1,0 +1,2604 @@
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 1 - 2023/01/06 14時27分15秒
+
+
+       1/       0 :                     ;;; 
+       2/       0 :                     ;;; Universal Monitor for Zilog Z80
+       3/       0 :                     ;;;   Copyright (C) 2019,2020,2021 Haruo Asano
+       4/       0 :                     ;;;
+       5/       0 :                     
+       6/       0 :                     	CPU	Z80
+       7/       0 :                     
+       8/       0 : ="Z80"               TARGET:	equ	"Z80"
+       9/       0 :                     
+      10/       0 :                     
+      11/       0 :                     	INCLUDE	"config.inc"
+(1)    1/       0 :                     ;;; -*- asm -*-
+(1)    2/       0 :                     ;;;
+(1)    3/       0 :                     ;;; Universal Monitor Z80 config file (sample)
+(1)    4/       0 :                     ;;;
+(1)    5/       0 :                     
+(1)    6/       0 :                     ;;;
+(1)    7/       0 :                     ;;; Memory
+(1)    8/       0 :                     ;;;
+(1)    9/       0 :                     
+(1)   10/       0 : =80H                 ENTRY:	EQU	0080H		; Entry point
+(1)   11/       0 :                     
+(1)   12/       0 : =9000H               RAM_B:	EQU	9000H
+(1)   13/       0 : =8F00H               WORK_B:	equ	8F00H
+(1)   14/       0 : =8FF0H               STACK:	equ	8FF0H
+(1)   15/       0 :                     
+(1)   16/       0 : =10H                 BUFLEN:	equ	16
+(1)   17/       0 :                     
+(1)   18/       0 :                     ;;;
+(1)   19/       0 :                     ;;; Options
+(1)   20/       0 :                     ;;;
+(1)   21/       0 :                     
+(1)   22/       0 : =1H                  USE_IDENT = 1			; CPU Identification
+(1)   23/       0 :                     
+(1)   24/       0 : =1H                  USE_REGCMD = 1			; R(egister) command and related functions
+(1)   25/       0 :                     
+(1)   26/       0 : =0H                  USE_RAMCHK = 0			; Check RAM (Must be 1 for DRAM)
+(1)   27/       0 :                     
+(1)   28/       0 : =0H                  USE_WARMUP = 0			; DRAM warming up
+(1)   29/       0 : =>FALSE              	IF USE_WARMUP
+(1)   30/       0 :                     WARMUP_ADDR = 8000H		;   Start address
+(1)   31/       0 :                     WARMUP_INCR = 1			;   Address increment
+(1)   32/       0 :                     WARMUP_CNT = 128 * 8		;   Count
+(1)   33/       0 : [29]                 	ENDIF
+(1)   34/       0 :                     
+(1)   35/       0 : =1H                  USE_NEWAPI = 1			; New API (RST 30H)
+(1)   36/       0 :                     
+(1)   37/       0 :                     ;;; HD64180 specific
+(1)   38/       0 : =0H                  DCNTL_V: EQU	00H
+(1)   39/       0 : =0H                  RMR_V:	EQU	00H
+(1)   40/       0 : =40H                 OMCR_V:	EQU	40H
+(1)   41/       0 : =20H                 CTS0_V:	EQU	20H
+(1)   42/       0 : =0C0H                IOBASE:	EQU	0C0H		; Internal I/O BASE (00H,40H,80H,0C0H)
+(1)   43/       0 :                     
+(1)   44/       0 : =1H                  USE_180TRAP = 1			; Handle HD64180 TRAP (experimental)
+(1)   45/       0 :                     
+(1)   46/       0 :                     ;;; Z8S180 specific
+(1)   47/       0 :                     	;; CPU Control Register
+(1)   48/       0 : =0H                  CCR1_V:	EQU	00H
+(1)   49/       0 :                     
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm(config.inc) - Page 2 - 2023/01/06 14時27分15秒
+
+
+(1)   50/       0 :                     ;;; Z280 specific
+(1)   51/       0 :                     	;; Bus Timing and Control Register: none additional WAIT
+(1)   52/       0 : =30H                 BTCR_V:	EQU	30H		; I/O=00, HM=00, DC=00
+(1)   53/       0 :                     	;; Bus Timing and Initialization Register
+(1)   54/       0 : =40H                 BTIR_V:	EQU	40H		; (CS=00), LM=00, MP=0, (BS=1), (DIC=0)
+(1)   55/       0 :                     	;; Cache Control Register
+(1)   56/       0 : =0H                  CCR_V:	EQU	00H		; Instruction & data cache enable, no burst mode
+(1)   57/       0 :                     	;; Refresh Rate Register
+(1)   58/       0 : =38H                 RRR_V:	EQU	38H		; Disable refresh
+(1)   59/       0 :                     
+(1)   60/       0 :                     ;;;
+(1)   61/       0 :                     ;;; Special initialize routine
+(1)   62/       0 :                     ;;;
+(1)   63/       0 :                     
+(1)   64/       0 : =0H                  USE_SPINIT = 0
+(1)   65/       0 : =>FALSE              	IF USE_SPINIT
+(1)   66/       0 :                     
+(1)   67/       0 :                     SPINIT	MACRO
+(1)   68/       0 :                     	ENDM
+(1)   69/       0 :                     
+(1)   70/       0 : [65]                 	ENDIF
+(1)   71/       0 :                     
+(1)   72/       0 :                     ;;;
+(1)   73/       0 :                     ;;; Console Drivers
+(1)   74/       0 :                     ;;;
+(1)   75/       0 :                     
+(1)   76/       0 :                     ;;; Zilog Z80 SIO
+(1)   77/       0 :                     
+(1)   78/       0 : =0H                  USE_DEV_Z80SIO = 0
+(1)   79/       0 : =>FALSE              	IF USE_DEV_Z80SIO
+(1)   80/       0 :                     SIOAD:	equ	00H		;
+(1)   81/       0 :                     SIOAC:	equ	01H		;
+(1)   82/       0 :                     SIOBD:	equ	02H		; (Ch.B not supported)
+(1)   83/       0 :                     SIOBC:	equ	03H		; (Ch.B not supported)
+(1)   84/       0 :                     USE_Z80CTC = 0			; Use Z80 CTC for baudrate generator
+(1)   85/       0 :                     	IF USE_Z80CTC
+(1)   86/       0 :                     CTC0:	EQU	10H
+(1)   87/       0 :                     TC_V:	EQU	4		; 9600bps @ 9.8304MHz
+(1)   88/       0 : [85]                 	ENDIF			; USE_Z80CTC
+(1)   89/       0 : [79]                 	ENDIF
+(1)   90/       0 :                     
+(1)   91/       0 :                     ;;; Intel 8251
+(1)   92/       0 :                     
+(1)   93/       0 : =0H                  USE_DEV_8251 = 0
+(1)   94/       0 : =>FALSE              	IF USE_DEV_8251
+(1)   95/       0 :                     USARTD:	equ	00H		; Data Register
+(1)   96/       0 :                     USARTC:	equ	01H		; Control / Status Register
+(1)   97/       0 : [94]                 	ENDIF
+(1)   98/       0 :                     
+(1)   99/       0 :                     ;;; NS NSC858
+(1)  100/       0 :                     
+(1)  101/       0 : =0H                  USE_DEV_NSC858 = 0
+(1)  102/       0 : =>FALSE              	IF USE_DEV_NSC858
+(1)  103/       0 :                     NSBASE:	EQU	00H
+(1)  104/       0 :                     RTMR_V:	EQU	0B0H		; Internal clock, 8 bit, no parity (RMR/TMR)
+(1)  105/       0 :                     GMR_V:	EQU	01H		; 1 stop bit, x16
+(1)  106/       0 :                     BRGD_V:	EQU	26		; 9600bps @ 4MHz
+(1)  107/       0 : [102]                	ENDIF
+(1)  108/       0 :                     
+(1)  109/       0 :                     ;;; Zilog Z280 (Internal)
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm(config.inc) - Page 3 - 2023/01/06 14時27分15秒
+
+
+(1)  110/       0 :                     
+(1)  111/       0 : =0H                  USE_DEV_Z280 = 0
+(1)  112/       0 : =>FALSE              	IF USE_DEV_Z280
+(1)  113/       0 :                     TCR1:	EQU	(19-1)		; bps = CLK(Xtal) / 8 / (TCR1+1) / 16
+(1)  114/       0 : [112]                	ENDIF
+(1)  115/       0 :                     
+(1)  116/       0 :                     ;;; Hitachi HD64180 (Internal)
+(1)  117/       0 :                     
+(1)  118/       0 : =0H                  USE_DEV_64180 = 0
+(1)  119/       0 : =>FALSE              	IF USE_DEV_64180
+(1)  120/       0 :                     ASBASE:	EQU	IOBASE+0	; IOBASE+1 for ASCI Ch.1
+(1)  121/       0 :                     CNTLA_V:	EQU	6CH		; 8bit 1 N
+(1)  122/       0 :                     CNTLB_V:	EQU	02H		; CLK/640
+(1)  123/       0 :                     ASEXT0_V:	EQU	20H		; CTS0 disable
+(1)  124/       0 : [119]                	ENDIF
+(1)  125/       0 :                     
+(1)  126/       0 :                     ;;; EMILY Board (Shared Memory)
+(1)  127/       0 :                     
+(1)  128/       0 : =0H                  USE_DEV_EMILY = 0
+(1)  129/       0 : =>FALSE              	IF USE_DEV_EMILY
+(1)  130/       0 :                     SMBASE:	EQU	0FF0H
+(1)  131/       0 : [129]                	ENDIF
+(1)  132/       0 :                     
+(1)  133/       0 :                     ;;; EMUZ80
+(1)  134/       0 :                     
+(1)  135/       0 : =1H                  USE_DEV_EMUZ80 = 1
+(1)  136/       0 : =>TRUE               	IF USE_DEV_EMUZ80
+(1)  137/       0 : =0E000H              USARTD:	equ	0E000H		; Data Register
+(1)  138/       0 : =0E001H              USARTC:	equ	0E001H		; Control / Status Register
+(1)  139/       0 : [136]                	ENDIF
+(1)  140/       0 :                     
+      12/       0 :                     
+      13/       0 :                     	INCLUDE	"../common.inc"
+(1)    1/       0 :                     ;;; -*- asm -*-
+(1)    2/       0 :                     ;;;
+(1)    3/       0 :                     ;;; Common header file
+(1)    4/       0 :                     ;;;
+(1)    5/       0 :                     
+(1)    6/       0 :                     	RELAXED	ON
+(1)    7/       0 :                     
+(1)    8/       0 :                     ;;; Constants
+(1)    9/       0 : =0DH                 CR:	EQU	0x0D
+(1)   10/       0 : =0AH                 LF:	EQU	0x0A
+(1)   11/       0 : =8H                  BS:	EQU	0x08
+(1)   12/       0 : =7FH                 DEL:	EQU	0x7F
+(1)   13/       0 :                     
+(1)   14/       0 :                     ;;; Functions
+(1)   15/       0 :                     low	function	x,(x & 255)
+(1)   16/       0 :                     high	function	x,(x >> 8)
+(1)   17/       0 :                     
+(1)   18/       0 :                     	RELAXED	OFF
+(1)   19/       0 :                     
+      14/       0 :                     
+      15/       0 :                     
+      16/       0 :                     ;;;
+      17/       0 :                     ;;; ROM area
+      18/       0 :                     ;;;
+      19/       0 :                     
+      20/       0 :                     	ORG	0000H
+      21/       0 : F3                  	DI
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 4 - 2023/01/06 14時27分15秒
+
+
+      22/       1 : C3 00 01            	JP	CSTART
+      23/       4 :                     
+      24/       8 :                     	ORG	0008H
+      25/       8 :                     
+      26/       8 :                     
+      27/      10 :                     	ORG	0010H
+      28/      10 : C3 CE 0C            	JP	CONIN
+      29/      13 :                     
+      30/      18 :                     	ORG	0018H
+      31/      18 : C3 DF 0C            	JP	CONOUT
+      32/      1B :                     
+      33/      1B :                     	;; ORG	0020H
+      34/      1B :                     	;; JP	EEREAD
+      35/      1B :                     
+      36/      1B :                     	;; ORG	0028H
+      37/      1B :                     	;; JP	EEWRITE
+      38/      1B :                     
+      39/      30 :                     	ORG	0030H
+      40/      30 : C3 02 09            	JP	RST30H
+      41/      33 :                     
+      42/      38 :                     	ORG	0038H
+      43/      38 : C3 2D 09            	JP	RST38H
+      44/      3B :                     
+      45/      3B :                     	;;
+      46/      3B :                     	;; Entry point
+      47/      3B :                     	;;
+      48/      3B :                     
+      49/      80 :                     	ORG	ENTRY+0		; Cold start
+      50/      80 :                     E_CSTART:
+      51/      80 : C3 00 01            	JP	CSTART
+      52/      83 :                     
+      53/      88 :                     	ORG	ENTRY+8		; Warm start
+      54/      88 :                     E_WSTART:
+      55/      88 : C3 23 02            	JP	WSTART
+      56/      8B :                     
+      57/      90 :                     	ORG	ENTRY+16	; Console output
+      58/      90 :                     E_CONOUT:
+      59/      90 : C3 DF 0C            	JP	CONOUT
+      60/      93 :                     
+      61/      98 :                     	ORG	ENTRY+24	; (Console) String output
+      62/      98 :                     E_STROUT:
+      63/      98 : C3 16 08            	JP	STROUT
+      64/      9B :                     
+      65/      A0 :                     	ORG	ENTRY+32	; Console input
+      66/      A0 :                     E_CONIN:
+      67/      A0 : C3 CE 0C            	JP	CONIN
+      68/      A3 :                     
+      69/      A8 :                     	ORG	ENTRY+40	; Console status
+      70/      A8 :                     E_CONST:
+      71/      A8 : C3 D9 0C            	JP	CONST
+      72/      AB :                     
+      73/      AB :                     	;;
+      74/      AB :                     	;;
+      75/      AB :                     	;;
+      76/      AB :                     
+      77/     100 :                     	ORG	0100H
+      78/     100 :                     CSTART:
+      79/     100 :                     	;; Identify HD64180/Z180 TRAP
+      80/     100 : =>TRUE               	IF USE_180TRAP
+      81/     100 :                     	SAVE
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 5 - 2023/01/06 14時27分15秒
+
+
+      82/     100 :                     	CPU	Z180
+      83/     100 : ED 73 00 8F         	LD	(INBUF),SP	; Save SP
+      84/     104 : 31 10 8F            	LD	SP,INBUF+BUFLEN	; Temporary stack on INBUF area
+      85/     107 : F5                  	PUSH	AF
+      86/     108 : ED 5F               	LD	A,R
+      87/     10A : 32 02 8F            	LD	(INBUF+2),A	; Save R
+      88/     10D : C5                  	PUSH	BC
+      89/     10E : 01 FF 00            	LD	BC,00FFH
+      90/     111 : ED 4C               	MLT	BC
+      91/     113 : 78                  	LD	A,B
+      92/     114 : B1                  	OR	C
+      93/     115 : 20 1A               	JR	NZ,CS0		; Not HD64180/Z180
+      94/     117 :                     	;; HD64180/Z180
+      95/     117 : 3E C0               	LD	A,IOBASE
+      96/     119 : ED 39 3F            	OUT0	(3FH),A
+      97/     11C : ED 38 F4            	IN0	A,(IOBASE+34H)	; ITC register
+      98/     11F : 32 03 8F            	LD	(INBUF+3),A
+      99/     122 : E6 80               	AND	80H
+     100/     124 : 28 0B               	JR	Z,CS0		; Not TRAP
+     101/     126 : 3A 03 8F            	LD	A,(INBUF+3)
+     102/     129 : E6 7F               	AND	7FH
+     103/     12B : ED 39 F4            	OUT0	(IOBASE+34H),A	; Reset TRAP bit
+     104/     12E : C3 9C 09            	JP	TRAPH
+     105/     131 :                     CS0:
+     106/     131 : ALL                  	RESTORE
+     107/     131 : [80]                 	ENDIF
+     108/     131 :                     
+     109/     131 : 31 F0 8F            	LD	SP,STACK
+     110/     134 :                     
+     111/     134 : =>FALSE              	IF USE_SPINIT
+     112/     134 :                     	SPINIT
+     113/     134 : [111]                	ENDIF
+     114/     134 :                     
+     115/     134 :                     	;; DRAM warming up
+     116/     134 : =>FALSE              	IF USE_WARMUP
+     117/     134 :                     
+     118/     134 :                     	LD	HL,WARMUP_ADDR
+     119/     134 :                     	IF WARMUP_INCR > 1
+     120/     134 :                     	LD	DE,WARMUP_INCR
+     121/     134 : [119]                	ENDIF
+     122/     134 :                     	LD	BC,WARMUP_CNT
+     123/     134 :                     WU0:
+     124/     134 :                     	LD	A,(HL)
+     125/     134 :                     	IF WARMUP_INCR == 1
+     126/     134 :                     	INC	HL
+     127/     134 : [125]                	ENDIF
+     128/     134 :                     	IF WARMUP_INCR > 1
+     129/     134 :                     	ADD	HL,DE
+     130/     134 : [128]                	ENDIF
+     131/     134 :                     	DEC	BC
+     132/     134 :                     	LD	A,B
+     133/     134 :                     	OR	C
+     134/     134 :                     	JR	NZ,WU0
+     135/     134 :                     
+     136/     134 : [116]                	ENDIF
+     137/     134 :                     
+     138/     134 :                     	;; Check RAM
+     139/     134 : =>FALSE              	IF USE_RAMCHK
+     140/     134 :                     
+     141/     134 :                     	LD	DE,RAM_B
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 6 - 2023/01/06 14時27分15秒
+
+
+     142/     134 :                     	LD	HL,RAM_B+1
+     143/     134 :                     RC0:
+     144/     134 :                     	LD	A,(HL)
+     145/     134 :                     	LD	B,A
+     146/     134 :                     	CPL
+     147/     134 :                     	LD	(HL),A
+     148/     134 :                     	CP	(HL)
+     149/     134 :                     	JR	NZ,RC1		; Unwritable
+     150/     134 :                     	LD	A,(DE)
+     151/     134 :                     	CP	(HL)
+     152/     134 :                     	JR	NZ,RC2
+     153/     134 :                     	LD	(HL),B
+     154/     134 :                     	LD	A,(DE)
+     155/     134 :                     	CP	(HL)
+     156/     134 :                     	JR	NZ,RC2
+     157/     134 :                     RC1:
+     158/     134 :                     	;; (HL) and (DE) points same memory or (HL) points no memory
+     159/     134 :                     	LD	(RAMEND),HL
+     160/     134 :                     	JR	RCE
+     161/     134 :                     RC2:
+     162/     134 :                     	LD	(HL),B
+     163/     134 :                     	INC	HL
+     164/     134 :                     	LD	A,H
+     165/     134 :                     	OR	L
+     166/     134 :                     	JR	NZ,RC0
+     167/     134 :                     	LD	(RAMEND),HL
+     168/     134 :                     RCE:
+     169/     134 : [139]                	ENDIF
+     170/     134 :                     
+     171/     134 :                     	;; CPU identification
+     172/     134 : AF                  	XOR	A
+     173/     135 : 32 1B 8F            	LD	(PSPEC),A
+     174/     138 :                     
+     175/     138 : =>TRUE               	IF USE_IDENT
+     176/     138 : 01 FF 00            	LD	BC,00FFH
+     177/     13B : ED 4C               	DB	0EDH,4CH	; MLT BC (HD64180)
+     178/     13D : 78                  	LD	A,B
+     179/     13E : B1                  	OR	C
+     180/     13F : 28 17               	JR	Z,ID_180
+     181/     141 : 3E 40               	LD	A,40H
+     182/     143 : CB 37               	DB	0CBH,37H	; TEST A (Z280)
+     183/     145 : F2 B3 01            	JP	P,ID_280
+     184/     148 : 3E 7F               	LD	A,7FH
+     185/     14A : ED 4F               	LD	R,A
+     186/     14C : ED 5F               	LD	A,R
+     187/     14E : FA DC 01            	JP	M,ID_NSC
+     188/     151 :                     	;; Z80
+     189/     151 : 21 65 0A            	LD	HL,IM80
+     190/     154 : AF                  	XOR	A
+     191/     155 : C3 E1 01            	JP	IDE
+     192/     158 :                     	;; HD64180
+     193/     158 :                     	SAVE			; HD64180 specific initialization
+     194/     158 :                     	CPU	Z180
+     195/     158 :                     ID_180:
+     196/     158 : 3E C0               	LD	A,IOBASE
+     197/     15A : ED 39 3F            	OUT0	(3FH),A
+     198/     15D : 3E 00               	LD	A,DCNTL_V
+     199/     15F : ED 39 F2            	OUT0	(IOBASE+32H),A
+     200/     162 : 3E 00               	LD	A,RMR_V
+     201/     164 : ED 39 F6            	OUT0	(IOBASE+36H),A
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 7 - 2023/01/06 14時27分15秒
+
+
+     202/     167 : 3E 7F               	LD	A,7FH		; Try to change OMCR bit 7 to 0
+     203/     169 : ED 39 FE            	OUT0	(IOBASE+3EH),A
+     204/     16C : ED 38 FE            	IN0	A,(IOBASE+3EH)
+     205/     16F : E6 80               	AND	80H
+     206/     171 : 28 07               	JR	Z,ID_180Z	; HD64180Z detected
+     207/     173 :                     
+     208/     173 : 21 6B 0A            	LD	HL,IM180
+     209/     176 : 3E 01               	LD	A,01H
+     210/     178 : 18 67               	JR	IDE
+     211/     17A :                     	;; HD64180Z
+     212/     17A :                     ID_180Z:
+     213/     17A : 3E 40               	LD	A,OMCR_V
+     214/     17C : ED 39 FE            	OUT0	(IOBASE+3EH),A
+     215/     17F : AF                  	XOR	A
+     216/     180 : ED 39 D2            	OUT0	(IOBASE+12H),A
+     217/     183 : ED 38 D2            	IN0	A,(IOBASE+12H)
+     218/     186 : E6 40               	AND	40H
+     219/     188 : 28 1D               	JR	Z,ID_Z8S	; Z8S180 (SL1919) detected
+     220/     18A :                     
+     221/     18A : AF                  	XOR	A
+     222/     18B : ED 39 DF            	OUT0	(IOBASE+1FH),A
+     223/     18E : ED 38 DF            	IN0	A,(IOBASE+1FH)
+     224/     191 : B7                  	OR	A
+     225/     192 : 28 07               	JR	Z,ID_1960	; Z8S180 (SL1960) detected
+     226/     194 :                     
+     227/     194 : 21 76 0A            	LD	HL,IM180Z
+     228/     197 : 3E 02               	LD	A,02H
+     229/     199 : 18 46               	JR	IDE
+     230/     19B :                     	;; Z8S180 (SL1960)
+     231/     19B :                     ID_1960:
+     232/     19B : 3E 00               	LD	A,CCR1_V
+     233/     19D : ED 39 DF            	OUT0	(IOBASE+1FH),A
+     234/     1A0 : 21 81 0A            	LD	HL,IM1960
+     235/     1A3 : 3E 04               	LD	A,04H
+     236/     1A5 : 18 3A               	JR	IDE
+     237/     1A7 :                     
+     238/     1A7 :                     	;; Z8S180
+     239/     1A7 :                     ID_Z8S:
+     240/     1A7 : 3E 00               	LD	A,CCR1_V
+     241/     1A9 : ED 39 DF            	OUT0	(IOBASE+1FH),A
+     242/     1AC : 21 91 0A            	LD	HL,IMZ8S
+     243/     1AF : 3E 05               	LD	A,05H
+     244/     1B1 : 18 2E               	JR	IDE
+     245/     1B3 :                     
+     246/     1B3 : ALL                  	RESTORE
+     247/     1B3 :                     	;; Z280
+     248/     1B3 :                     ID_280:
+     249/     1B3 : 2E 30               	LD	L,BTCR_V	; Z280 specific initialization
+     250/     1B5 : 0E 02               	LD	C,02H		; BTCR
+     251/     1B7 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+     252/     1B9 : 2E 40               	LD	L,BTIR_V
+     253/     1BB : 0E FF               	LD	C,0FFH		; BTIR
+     254/     1BD : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+     255/     1BF : 2E 00               	LD	L,CCR_V
+     256/     1C1 : 0E 12               	LD	C,12H		; CCR
+     257/     1C3 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+     258/     1C5 :                     
+     259/     1C5 : 2E FF               	LD	L,0FFH
+     260/     1C7 : 0E 08               	LD	C,08H		; IOBR
+     261/     1C9 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 8 - 2023/01/06 14時27分15秒
+
+
+     262/     1CB : 3E 38               	LD	A,RRR_V
+     263/     1CD : D3 E8               	OUT	(0E8H),A	; RRR
+     264/     1CF : 2E 00               	LD	L,00H
+     265/     1D1 : 0E 08               	LD	C,08H
+     266/     1D3 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+     267/     1D5 :                     
+     268/     1D5 : 21 9A 0A            	LD	HL,IM280
+     269/     1D8 : 3E 08               	LD	A,08H
+     270/     1DA : 18 05               	JR	IDE
+     271/     1DC :                     	;; NSC800
+     272/     1DC :                     ID_NSC:
+     273/     1DC : 21 A1 0A            	LD	HL,IMNSC
+     274/     1DF : 3E 09               	LD	A,09H
+     275/     1E1 :                     IDE:
+     276/     1E1 : 32 1B 8F            	LD	(PSPEC),A
+     277/     1E4 : 22 00 8F            	LD	(INBUF),HL
+     278/     1E7 : [175]                	ENDIF			; USE_IDENT
+     279/     1E7 :                     
+     280/     1E7 : CD CD 0C            	CALL    INIT
+     281/     1EA :                     
+     282/     1EA : 21 00 80            	LD	HL,8000H
+     283/     1ED : 22 10 8F            	LD	(DSADDR),HL
+     284/     1F0 : 22 17 8F            	LD	(SADDR),HL
+     285/     1F3 : 22 15 8F            	LD	(GADDR),HL
+     286/     1F6 : 3E 49               	LD	A,'I'
+     287/     1F8 : 32 19 8F            	LD	(HEXMOD),A
+     288/     1FB : AF                  	XOR	A
+     289/     1FC : 32 1D 8F            	LD	(IOPAGE),A
+     290/     1FF :                     
+     291/     1FF : =>TRUE               	IF USE_REGCMD
+     292/     1FF :                     
+     293/     1FF :                     	;; Initialize register value
+     294/     1FF : AF                  	XOR	A
+     295/     200 : 21 1E 8F            	LD	HL,REG_B
+     296/     203 : 06 1A               	LD	B,REG_E-REG_B
+     297/     205 :                     IR0:
+     298/     205 : 77                  	LD	(HL),A
+     299/     206 : 23                  	INC	HL
+     300/     207 : 10 FC               	DJNZ	IR0
+     301/     209 :                     
+     302/     209 : 21 F0 8F            	LD	HL,STACK
+     303/     20C : 22 32 8F            	LD	(REGSP),HL
+     304/     20F :                     
+     305/     20F : [291]                	ENDIF
+     306/     20F :                     
+     307/     20F : 06 64               	LD	B,100
+     308/     211 :                     TL:
+     309/     211 : AF                  	XOR	A
+     310/     212 : CD DF 0C            	CALL	CONOUT
+     311/     215 : 10 FA               	DJNZ	TL
+     312/     217 :                     
+     313/     217 :                     	;; Opening message
+     314/     217 : 21 04 0A            	LD	HL,OPNMSG
+     315/     21A : CD 16 08            	CALL	STROUT
+     316/     21D :                     
+     317/     21D : =>TRUE               	IF USE_IDENT
+     318/     21D : 2A 00 8F            	LD	HL,(INBUF)
+     319/     220 : CD 16 08            	CALL	STROUT
+     320/     223 : [317]                	ENDIF
+     321/     223 :                     
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 9 - 2023/01/06 14時27分15秒
+
+
+     322/     223 : =>FALSE              	IF USE_RAMCHK
+     323/     223 :                     	LD	HL,RAM_B
+     324/     223 :                     	CALL	HEXOUT4
+     325/     223 :                     	LD	A,'-'
+     326/     223 :                     	CALL	CONOUT
+     327/     223 :                     	LD	HL,(RAMEND)
+     328/     223 :                     	DEC	HL
+     329/     223 :                     	CALL	HEXOUT4
+     330/     223 :                     	CALL	CRLF
+     331/     223 : [322]                	ENDIF
+     332/     223 :                     
+     333/     223 :                     WSTART:
+     334/     223 : 21 1E 0A            	LD	HL,PROMPT
+     335/     226 : CD 16 08            	CALL	STROUT
+     336/     229 : CD 6C 08            	CALL	GETLIN
+     337/     22C : 21 00 8F            	LD	HL,INBUF
+     338/     22F : CD B8 08            	CALL	SKIPSP
+     339/     232 : CD BF 08            	CALL	UPPER
+     340/     235 : B7                  	OR	A
+     341/     236 : 28 EB               	JR	Z,WSTART
+     342/     238 :                     
+     343/     238 : FE 44               	CP	'D'
+     344/     23A : 28 30               	JR	Z,DUMP
+     345/     23C : FE 47               	CP	'G'
+     346/     23E : CA 72 03            	JP	Z,GO
+     347/     241 : FE 53               	CP	'S'
+     348/     243 : CA E9 03            	JP	Z,SETM
+     349/     246 :                     
+     350/     246 : FE 4C               	CP	'L'
+     351/     248 : CA 50 04            	JP	Z,LOADH
+     352/     24B : FE 50               	CP	'P'
+     353/     24D : CA 21 05            	JP	Z,SAVEH
+     354/     250 :                     
+     355/     250 : FE 49               	CP	'I'
+     356/     252 : CA FE 05            	JP	Z,PIN
+     357/     255 : FE 4F               	CP	'O'
+     358/     257 : CA 90 06            	JP	Z,POUT
+     359/     25A : FE 5A               	CP	'Z'
+     360/     25C : CA 28 07            	JP	Z,PBANK
+     361/     25F :                     
+     362/     25F : =>TRUE               	IF USE_REGCMD
+     363/     25F : FE 52               	CP	'R'
+     364/     261 : CA 56 07            	JP	Z,REG
+     365/     264 : [362]                	ENDIF
+     366/     264 :                     
+     367/     264 :                     ERR:
+     368/     264 : 21 3B 0A            	LD	HL,ERRMSG
+     369/     267 : CD 16 08            	CALL	STROUT
+     370/     26A : 18 B7               	JR	WSTART
+     371/     26C :                     
+     372/     26C :                     ;;;
+     373/     26C :                     ;;; Dump memory
+     374/     26C :                     ;;;
+     375/     26C :                     
+     376/     26C :                     DUMP:
+     377/     26C : 23                  	INC	HL
+     378/     26D : CD B8 08            	CALL	SKIPSP
+     379/     270 : CD C8 08            	CALL	RDHEX		; 1st arg.
+     380/     273 : 79                  	LD	A,C
+     381/     274 : B7                  	OR	A
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 10 - 2023/01/06 14時27分15秒
+
+
+     382/     275 : 20 13               	JR	NZ,DP0
+     383/     277 :                     	;; No arg.
+     384/     277 : CD B8 08            	CALL	SKIPSP
+     385/     27A : 7E                  	LD	A,(HL)
+     386/     27B : B7                  	OR	A
+     387/     27C : 20 E6               	JR	NZ,ERR
+     388/     27E : 2A 10 8F            	LD	HL,(DSADDR)
+     389/     281 : 01 80 00            	LD	BC,128
+     390/     284 : 09                  	ADD	HL,BC
+     391/     285 : 22 12 8F            	LD	(DEADDR),HL
+     392/     288 : 18 30               	JR	DPM
+     393/     28A :                     
+     394/     28A :                     	;; 1st arg. found
+     395/     28A :                     DP0:
+     396/     28A : ED 53 10 8F         	LD	(DSADDR),DE
+     397/     28E : CD B8 08            	CALL	SKIPSP
+     398/     291 : 7E                  	LD	A,(HL)
+     399/     292 : FE 2C               	CP	','
+     400/     294 : 28 0C               	JR	Z,DP1
+     401/     296 : B7                  	OR	A
+     402/     297 : 20 CB               	JR	NZ,ERR
+     403/     299 :                     	;; No 2nd arg.
+     404/     299 : 21 80 00            	LD	HL,128
+     405/     29C : 19                  	ADD	HL,DE
+     406/     29D : 22 12 8F            	LD	(DEADDR),HL
+     407/     2A0 : 18 18               	JR	DPM
+     408/     2A2 :                     DP1:
+     409/     2A2 : 23                  	INC	HL
+     410/     2A3 : CD B8 08            	CALL	SKIPSP
+     411/     2A6 : CD C8 08            	CALL	RDHEX
+     412/     2A9 : CD B8 08            	CALL	SKIPSP
+     413/     2AC : 79                  	LD	A,C
+     414/     2AD : B7                  	OR	A
+     415/     2AE : 28 B4               	JR	Z,ERR
+     416/     2B0 : 7E                  	LD	A,(HL)
+     417/     2B1 : B7                  	OR	A
+     418/     2B2 : C2 64 02            	JP	NZ,ERR
+     419/     2B5 : 13                  	INC	DE
+     420/     2B6 : ED 53 12 8F         	LD	(DEADDR),DE
+     421/     2BA :                     DPM:
+     422/     2BA :                     	;; DUMP main
+     423/     2BA : 2A 10 8F            	LD	HL,(DSADDR)
+     424/     2BD : 3E F0               	LD	A,0F0H
+     425/     2BF : A5                  	AND	A,L
+     426/     2C0 : 6F                  	LD	L,A
+     427/     2C1 : AF                  	XOR	A
+     428/     2C2 : 32 14 8F            	LD	(DSTATE),A
+     429/     2C5 :                     DPM0:
+     430/     2C5 : E5                  	PUSH	HL
+     431/     2C6 : CD EC 02            	CALL	DPL
+     432/     2C9 : E1                  	POP	HL
+     433/     2CA : 01 10 00            	LD	BC,16
+     434/     2CD : 09                  	ADD	HL,BC
+     435/     2CE : CD D9 0C            	CALL	CONST
+     436/     2D1 : 20 10               	JR	NZ,DPM1
+     437/     2D3 : 3A 14 8F            	LD	A,(DSTATE)
+     438/     2D6 : FE 02               	CP	2
+     439/     2D8 : 38 EB               	JR	C,DPM0
+     440/     2DA : 2A 12 8F            	LD	HL,(DEADDR)
+     441/     2DD : 22 10 8F            	LD	(DSADDR),HL
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 11 - 2023/01/06 14時27分15秒
+
+
+     442/     2E0 : C3 23 02            	JP	WSTART
+     443/     2E3 :                     DPM1:
+     444/     2E3 : 22 10 8F            	LD	(DSADDR),HL
+     445/     2E6 : CD CE 0C            	CALL	CONIN
+     446/     2E9 : C3 23 02            	JP	WSTART
+     447/     2EC :                     
+     448/     2EC :                     DPL:
+     449/     2EC :                     	;; DUMP line
+     450/     2EC : CD 1F 08            	CALL	HEXOUT4
+     451/     2EF : E5                  	PUSH	HL
+     452/     2F0 : 21 43 0A            	LD	HL,DSEP0
+     453/     2F3 : CD 16 08            	CALL	STROUT
+     454/     2F6 : E1                  	POP	HL
+     455/     2F7 : DD 21 00 8F         	LD	IX,INBUF
+     456/     2FB : 06 10               	LD	B,16
+     457/     2FD :                     DPL0:
+     458/     2FD : CD 26 03            	CALL	DPB
+     459/     300 : 10 FB               	DJNZ	DPL0
+     460/     302 :                     
+     461/     302 : 21 46 0A            	LD	HL,DSEP1
+     462/     305 : CD 16 08            	CALL	STROUT
+     463/     308 :                     
+     464/     308 : 21 00 8F            	LD	HL,INBUF
+     465/     30B : 06 10               	LD	B,16
+     466/     30D :                     DPL1:
+     467/     30D : 7E                  	LD	A,(HL)
+     468/     30E : 23                  	INC	HL
+     469/     30F : FE 20               	CP	' '
+     470/     311 : 38 09               	JR	C,DPL2
+     471/     313 : FE 7F               	CP	7FH
+     472/     315 : 30 05               	JR	NC,DPL2
+     473/     317 : CD DF 0C            	CALL	CONOUT
+     474/     31A : 18 05               	JR	DPL3
+     475/     31C :                     DPL2:
+     476/     31C : 3E 2E               	LD	A,'.'
+     477/     31E : CD DF 0C            	CALL	CONOUT
+     478/     321 :                     DPL3:
+     479/     321 : 10 EA               	DJNZ	DPL1
+     480/     323 : C3 62 08            	JP	CRLF
+     481/     326 :                     
+     482/     326 :                     DPB:	; Dump byte
+     483/     326 : 3E 20               	LD	A,' '
+     484/     328 : CD DF 0C            	CALL	CONOUT
+     485/     32B : 3A 14 8F            	LD	A,(DSTATE)
+     486/     32E : B7                  	OR	A
+     487/     32F : 20 20               	JR	NZ,DPB2
+     488/     331 :                     	; Dump state 0
+     489/     331 : 3A 10 8F            	LD	A,(DSADDR)	; Low byte
+     490/     334 : BD                  	CP	L
+     491/     335 : 20 06               	JR	NZ,DPB0
+     492/     337 : 3A 11 8F            	LD	A,(DSADDR+1)	; High byte
+     493/     33A : BC                  	CP	H
+     494/     33B : 28 0F               	JR	Z,DPB1
+     495/     33D :                     DPB0:	; Still 0 or 2
+     496/     33D : 3E 20               	LD	A,' '
+     497/     33F : CD DF 0C            	CALL	CONOUT
+     498/     342 : CD DF 0C            	CALL	CONOUT
+     499/     345 : DD 77 00            	LD	(IX),A
+     500/     348 : 23                  	INC	HL
+     501/     349 : DD 23               	INC	IX
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 12 - 2023/01/06 14時27分15秒
+
+
+     502/     34B : C9                  	RET
+     503/     34C :                     DPB1:	; Found start address
+     504/     34C : 3E 01               	LD	A,1
+     505/     34E : 32 14 8F            	LD	(DSTATE),A
+     506/     351 :                     DPB2:
+     507/     351 : 3A 14 8F            	LD	A,(DSTATE)
+     508/     354 : FE 01               	CP	1
+     509/     356 : 20 E5               	JR	NZ,DPB0
+     510/     358 :                     	; Dump state 1
+     511/     358 : 7E                  	LD	A,(HL)
+     512/     359 : DD 77 00            	LD	(IX),A
+     513/     35C : CD 24 08            	CALL	HEXOUT2
+     514/     35F : 23                  	INC	HL
+     515/     360 : DD 23               	INC	IX
+     516/     362 : 3A 12 8F            	LD	A,(DEADDR)	; Low byte
+     517/     365 : BD                  	CP	L
+     518/     366 : C0                  	RET	NZ
+     519/     367 : 3A 13 8F            	LD	A,(DEADDR+1)	; High byte
+     520/     36A : BC                  	CP	H
+     521/     36B : C0                  	RET	NZ
+     522/     36C :                     	; Found end address
+     523/     36C : 3E 02               	LD	A,2
+     524/     36E : 32 14 8F            	LD	(DSTATE),A
+     525/     371 : C9                  	RET
+     526/     372 :                     
+     527/     372 :                     ;;;
+     528/     372 :                     ;;; GO address
+     529/     372 :                     ;;;
+     530/     372 :                     
+     531/     372 :                     GO:
+     532/     372 : 23                  	INC	HL
+     533/     373 : CD B8 08            	CALL	SKIPSP
+     534/     376 : CD C8 08            	CALL	RDHEX
+     535/     379 : 7E                  	LD	A,(HL)
+     536/     37A : B7                  	OR	A
+     537/     37B : C2 64 02            	JP	NZ,ERR
+     538/     37E : 79                  	LD	A,C
+     539/     37F : B7                  	OR	A
+     540/     380 : 28 04               	JR	Z,G0
+     541/     382 :                     
+     542/     382 : =>TRUE               	IF USE_REGCMD
+     543/     382 :                     
+     544/     382 : ED 53 34 8F         	LD	(REGPC),DE
+     545/     386 :                     G0:
+     546/     386 :                     	;; R register adjustment
+     547/     386 : =>TRUE               	IF USE_IDENT
+     548/     386 : 3A 1B 8F            	LD	A,(PSPEC)
+     549/     389 : FE 08               	CP	08H		; Z280
+     550/     38B : 28 1F               	JR	Z,G1
+     551/     38D : FE 09               	CP	09H		; NSC800
+     552/     38F : 28 13               	JR	Z,G01
+     553/     391 : 3A 37 8F            	LD	A,(REGR)
+     554/     394 : D6 02               	SUB	02H
+     555/     396 : E6 7F               	AND	7FH
+     556/     398 : 47                  	LD	B,A
+     557/     399 : 3A 37 8F            	LD	A,(REGR)
+     558/     39C : E6 80               	AND	80H
+     559/     39E : B0                  	OR	B
+     560/     39F : 32 37 8F            	LD	(REGR),A
+     561/     3A2 : 18 08               	JR	G1
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 13 - 2023/01/06 14時27分15秒
+
+
+     562/     3A4 :                     G01:
+     563/     3A4 : 3A 37 8F            	LD	A,(REGR)
+     564/     3A7 : D6 02               	SUB	02H
+     565/     3A9 : 32 37 8F            	LD	(REGR),A
+     566/     3AC :                     G1:
+     567/     3AC : [547]                	ENDIF
+     568/     3AC :                     
+     569/     3AC : 2A 32 8F            	LD	HL,(REGSP)
+     570/     3AF : F9                  	LD	SP,HL
+     571/     3B0 : 2A 34 8F            	LD	HL,(REGPC)
+     572/     3B3 : E5                  	PUSH	HL
+     573/     3B4 : DD 2A 2E 8F         	LD	IX,(REGIX)
+     574/     3B8 : FD 2A 30 8F         	LD	IY,(REGIY)
+     575/     3BC : 2A 26 8F            	LD	HL,(REGAFX)
+     576/     3BF : E5                  	PUSH	HL
+     577/     3C0 : ED 4B 28 8F         	LD	BC,(REGBCX)
+     578/     3C4 : ED 5B 2A 8F         	LD	DE,(REGDEX)
+     579/     3C8 : 2A 2C 8F            	LD	HL,(REGHLX)
+     580/     3CB : D9                  	EXX
+     581/     3CC : F1                  	POP	AF
+     582/     3CD : 08                  	EX	AF,AF'
+     583/     3CE : 2A 1E 8F            	LD	HL,(REGAF)
+     584/     3D1 : E5                  	PUSH	HL
+     585/     3D2 : ED 4B 20 8F         	LD	BC,(REGBC)
+     586/     3D6 : ED 5B 22 8F         	LD	DE,(REGDE)
+     587/     3DA : 2A 24 8F            	LD	HL,(REGHL)
+     588/     3DD : 3A 36 8F            	LD	A,(REGI)
+     589/     3E0 : ED 47               	LD	I,A
+     590/     3E2 : 3A 37 8F            	LD	A,(REGR)
+     591/     3E5 : ED 4F               	LD	R,A
+     592/     3E7 : F1                  	POP	AF
+     593/     3E8 : C9                  	RET			; POP PC
+     594/     3E9 :                     
+     595/     3E9 : =>FALSE              	ELSE
+     596/     3E9 :                     
+     597/     3E9 :                     	LD	(GADDR),DE
+     598/     3E9 :                     G0:
+     599/     3E9 :                     	LD	HL,(GADDR)
+     600/     3E9 :                     	JP	(HL)
+     601/     3E9 :                     
+     602/     3E9 : [542]                	ENDIF
+     603/     3E9 :                     
+     604/     3E9 :                     ;;;
+     605/     3E9 :                     ;;; SET memory
+     606/     3E9 :                     ;;;
+     607/     3E9 :                     
+     608/     3E9 :                     SETM:
+     609/     3E9 : 23                  	INC	HL
+     610/     3EA : CD B8 08            	CALL	SKIPSP
+     611/     3ED : CD C8 08            	CALL	RDHEX
+     612/     3F0 : CD B8 08            	CALL	SKIPSP
+     613/     3F3 : 7E                  	LD	A,(HL)
+     614/     3F4 : B7                  	OR	A
+     615/     3F5 : C2 64 02            	JP	NZ,ERR
+     616/     3F8 : 79                  	LD	A,C
+     617/     3F9 : B7                  	OR	A
+     618/     3FA : 20 04               	JR	NZ,SM0
+     619/     3FC : ED 5B 17 8F         	LD	DE,(SADDR)
+     620/     400 :                     SM0:
+     621/     400 : EB                  	EX	DE,HL
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 14 - 2023/01/06 14時27分15秒
+
+
+     622/     401 :                     SM1:
+     623/     401 : CD 1F 08            	CALL	HEXOUT4
+     624/     404 : E5                  	PUSH	HL
+     625/     405 : 21 46 0A            	LD	HL,DSEP1
+     626/     408 : CD 16 08            	CALL	STROUT
+     627/     40B : E1                  	POP	HL
+     628/     40C : 7E                  	LD	A,(HL)
+     629/     40D : E5                  	PUSH	HL
+     630/     40E : CD 24 08            	CALL	HEXOUT2
+     631/     411 : 3E 20               	LD	A,' '
+     632/     413 : CD DF 0C            	CALL	CONOUT
+     633/     416 : CD 6C 08            	CALL	GETLIN
+     634/     419 : 21 00 8F            	LD	HL,INBUF
+     635/     41C : CD B8 08            	CALL	SKIPSP
+     636/     41F : 7E                  	LD	A,(HL)
+     637/     420 : B7                  	OR	A
+     638/     421 : 20 07               	JR	NZ,SM2
+     639/     423 :                     	;; Empty  (Increment address)
+     640/     423 : E1                  	POP	HL
+     641/     424 : 23                  	INC	HL
+     642/     425 : 22 17 8F            	LD	(SADDR),HL
+     643/     428 : 18 D7               	JR	SM1
+     644/     42A :                     SM2:
+     645/     42A : FE 2D               	CP	'-'
+     646/     42C : 20 07               	JR	NZ,SM3
+     647/     42E :                     	;; '-'  (Decrement address)
+     648/     42E : E1                  	POP	HL
+     649/     42F : 2B                  	DEC	HL
+     650/     430 : 22 17 8F            	LD	(SADDR),HL
+     651/     433 : 18 CC               	JR	SM1
+     652/     435 :                     SM3:
+     653/     435 : FE 2E               	CP	'.'
+     654/     437 : 20 07               	JR	NZ,SM4
+     655/     439 : E1                  	POP	HL
+     656/     43A : 22 17 8F            	LD	(SADDR),HL
+     657/     43D : C3 23 02            	JP	WSTART
+     658/     440 :                     SM4:
+     659/     440 : CD C8 08            	CALL	RDHEX
+     660/     443 : 79                  	LD	A,C
+     661/     444 : B7                  	OR	A
+     662/     445 : E1                  	POP	HL
+     663/     446 : CA 64 02            	JP	Z,ERR
+     664/     449 : 73                  	LD	(HL),E
+     665/     44A : 23                  	INC	HL
+     666/     44B : 22 17 8F            	LD	(SADDR),HL
+     667/     44E : 18 B1               	JR	SM1
+     668/     450 :                     
+     669/     450 :                     ;;;
+     670/     450 :                     ;;; LOAD HEX file
+     671/     450 :                     ;;;
+     672/     450 :                     
+     673/     450 :                     LOADH:
+     674/     450 : 23                  	INC	HL
+     675/     451 : CD B8 08            	CALL	SKIPSP
+     676/     454 : CD C8 08            	CALL	RDHEX
+     677/     457 : CD B8 08            	CALL	SKIPSP
+     678/     45A : 7E                  	LD	A,(HL)
+     679/     45B : B7                  	OR	A
+     680/     45C : C2 64 02            	JP	NZ,ERR
+     681/     45F :                     
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 15 - 2023/01/06 14時27分15秒
+
+
+     682/     45F : 79                  	LD	A,C
+     683/     460 : B7                  	OR	A
+     684/     461 : 20 03               	JR	NZ,LH0
+     685/     463 :                     
+     686/     463 : 11 00 00            	LD	DE,0		;Offset
+     687/     466 :                     LH0:
+     688/     466 : CD CE 0C            	CALL	CONIN
+     689/     469 : CD BF 08            	CALL	UPPER
+     690/     46C : FE 53               	CP	'S'
+     691/     46E : 28 5C               	JR	Z,LHS0
+     692/     470 :                     LH1:
+     693/     470 : FE 3A               	CP	':'
+     694/     472 : 28 0D               	JR	Z,LHI0
+     695/     474 :                     LH2:
+     696/     474 :                     	;; Skip to EOL
+     697/     474 : FE 0D               	CP	CR
+     698/     476 : 28 EE               	JR	Z,LH0
+     699/     478 : FE 0A               	CP	LF
+     700/     47A : 28 EA               	JR	Z,LH0
+     701/     47C :                     LH3:
+     702/     47C : CD CE 0C            	CALL	CONIN
+     703/     47F : 18 F3               	JR	LH2
+     704/     481 :                     
+     705/     481 :                     LHI0:
+     706/     481 : CD 3B 08            	CALL	HEXIN
+     707/     484 : 4F                  	LD	C,A		; Checksum
+     708/     485 : 47                  	LD	B,A		; Length
+     709/     486 :                     
+     710/     486 : CD 3B 08            	CALL	HEXIN
+     711/     489 : 67                  	LD	H,A		; Address H
+     712/     48A : 81                  	ADD	A,C
+     713/     48B : 4F                  	LD	C,A
+     714/     48C :                     
+     715/     48C : CD 3B 08            	CALL	HEXIN
+     716/     48F : 6F                  	LD	L,A		; Address L
+     717/     490 : 81                  	ADD	A,C
+     718/     491 : 4F                  	LD	C,A
+     719/     492 :                     
+     720/     492 :                     	;; Add offset
+     721/     492 : 19                  	ADD	HL,DE
+     722/     493 :                     
+     723/     493 : CD 3B 08            	CALL	HEXIN
+     724/     496 : 32 1A 8F            	LD	(RECTYP),A
+     725/     499 : 81                  	ADD	A,C
+     726/     49A : 4F                  	LD	C,A		; Checksum
+     727/     49B :                     
+     728/     49B : 78                  	LD	A,B
+     729/     49C : B7                  	OR	A
+     730/     49D : 28 14               	JR	Z,LHI3
+     731/     49F :                     LHI1:
+     732/     49F : CD 3B 08            	CALL	HEXIN
+     733/     4A2 : F5                  	PUSH	AF
+     734/     4A3 : 81                  	ADD	A,C
+     735/     4A4 : 4F                  	LD	C,A		; Checksum
+     736/     4A5 :                     
+     737/     4A5 : 3A 1A 8F            	LD	A,(RECTYP)
+     738/     4A8 : B7                  	OR	A
+     739/     4A9 : 20 05               	JR	NZ,LHI20
+     740/     4AB :                     
+     741/     4AB : F1                  	POP	AF
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 16 - 2023/01/06 14時27分15秒
+
+
+     742/     4AC : 77                  	LD	(HL),A
+     743/     4AD : 23                  	INC	HL
+     744/     4AE : 18 01               	JR	LHI2
+     745/     4B0 :                     LHI20:
+     746/     4B0 : F1                  	POP	AF
+     747/     4B1 :                     LHI2:
+     748/     4B1 : 10 EC               	DJNZ	LHI1
+     749/     4B3 :                     LHI3:
+     750/     4B3 : CD 3B 08            	CALL	HEXIN
+     751/     4B6 : 81                  	ADD	A,C
+     752/     4B7 : 20 0A               	JR	NZ,LHIE		; Checksum error
+     753/     4B9 : 3A 1A 8F            	LD	A,(RECTYP)
+     754/     4BC : B7                  	OR	A
+     755/     4BD : CA 7C 04            	JP	Z,LH3
+     756/     4C0 : C3 23 02            	JP	WSTART
+     757/     4C3 :                     LHIE:
+     758/     4C3 : 21 21 0A            	LD	HL,IHEMSG
+     759/     4C6 : CD 16 08            	CALL	STROUT
+     760/     4C9 : C3 23 02            	JP	WSTART
+     761/     4CC :                     
+     762/     4CC :                     LHS0:
+     763/     4CC : CD CE 0C            	CALL	CONIN
+     764/     4CF : 32 1A 8F            	LD	(RECTYP),A
+     765/     4D2 :                     
+     766/     4D2 : CD 3B 08            	CALL	HEXIN
+     767/     4D5 : 47                  	LD	B,A		; Length+3
+     768/     4D6 : 4F                  	LD	C,A		; Checksum
+     769/     4D7 :                     
+     770/     4D7 : CD 3B 08            	CALL	HEXIN
+     771/     4DA : 67                  	LD	H,A
+     772/     4DB : 81                  	ADD	A,C
+     773/     4DC : 4F                  	LD	C,A
+     774/     4DD :                     
+     775/     4DD : CD 3B 08            	CALL	HEXIN
+     776/     4E0 : 6F                  	LD	L,A
+     777/     4E1 : 81                  	ADD	A,C
+     778/     4E2 : 4F                  	LD	C,A
+     779/     4E3 :                     
+     780/     4E3 : 19                  	ADD	HL,DE
+     781/     4E4 :                     
+     782/     4E4 : 05                  	DEC	B
+     783/     4E5 : 05                  	DEC	B
+     784/     4E6 : 05                  	DEC	B
+     785/     4E7 : 28 15               	JR	Z,LHS3
+     786/     4E9 :                     LHS1:
+     787/     4E9 : CD 3B 08            	CALL	HEXIN
+     788/     4EC : F5                  	PUSH	AF
+     789/     4ED : 81                  	ADD	A,C
+     790/     4EE : 4F                  	LD	C,A		; Checksum
+     791/     4EF :                     
+     792/     4EF : 3A 1A 8F            	LD	A,(RECTYP)
+     793/     4F2 : FE 31               	CP	'1'
+     794/     4F4 : 20 05               	JR	NZ,LHS2
+     795/     4F6 :                     
+     796/     4F6 : F1                  	POP	AF
+     797/     4F7 : 77                  	LD	(HL),A
+     798/     4F8 : 23                  	INC	HL
+     799/     4F9 : 18 01               	JR	LHS20
+     800/     4FB :                     LHS2:
+     801/     4FB : F1                  	POP	AF
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 17 - 2023/01/06 14時27分15秒
+
+
+     802/     4FC :                     LHS20:
+     803/     4FC : 10 EB               	DJNZ	LHS1
+     804/     4FE :                     LHS3:
+     805/     4FE : CD 3B 08            	CALL	HEXIN
+     806/     501 : 81                  	ADD	A,C
+     807/     502 : FE FF               	CP	0FFH
+     808/     504 : 20 12               	JR	NZ,LHSE
+     809/     506 :                     
+     810/     506 : 3A 1A 8F            	LD	A,(RECTYP)
+     811/     509 : FE 37               	CP	'7'
+     812/     50B : 28 11               	JR	Z,LHSR
+     813/     50D : FE 38               	CP	'8'
+     814/     50F : 28 0D               	JR	Z,LHSR
+     815/     511 : FE 39               	CP	'9'
+     816/     513 : 28 09               	JR	Z,LHSR
+     817/     515 : C3 7C 04            	JP	LH3
+     818/     518 :                     LHSE:
+     819/     518 : 21 2E 0A            	LD	HL,SHEMSG
+     820/     51B : CD 16 08            	CALL	STROUT
+     821/     51E :                     LHSR:
+     822/     51E : C3 23 02            	JP	WSTART
+     823/     521 :                     
+     824/     521 :                     ;;;
+     825/     521 :                     ;;; SAVE HEX file
+     826/     521 :                     ;;;
+     827/     521 :                     
+     828/     521 :                     SAVEH:
+     829/     521 : 23                  	INC	HL
+     830/     522 : 7E                  	LD	A,(HL)
+     831/     523 : CD BF 08            	CALL	UPPER
+     832/     526 : FE 49               	CP	'I'
+     833/     528 : 28 04               	JR	Z,SH0
+     834/     52A : FE 53               	CP	'S'
+     835/     52C : 20 04               	JR	NZ,SH1
+     836/     52E :                     SH0:
+     837/     52E : 23                  	INC	HL
+     838/     52F : 32 19 8F            	LD	(HEXMOD),A
+     839/     532 :                     SH1:
+     840/     532 : CD B8 08            	CALL	SKIPSP
+     841/     535 : CD C8 08            	CALL	RDHEX
+     842/     538 : 79                  	LD	A,C
+     843/     539 : B7                  	OR	A
+     844/     53A : 28 1D               	JR	Z,SHE
+     845/     53C : D5                  	PUSH	DE
+     846/     53D : DD E1               	POP	IX		; IX = Start address
+     847/     53F : CD B8 08            	CALL	SKIPSP
+     848/     542 : 7E                  	LD	A,(HL)
+     849/     543 : FE 2C               	CP	','
+     850/     545 : 20 12               	JR	NZ,SHE
+     851/     547 : 23                  	INC	HL
+     852/     548 : CD B8 08            	CALL	SKIPSP
+     853/     54B : CD C8 08            	CALL	RDHEX		; DE = End address
+     854/     54E : 79                  	LD	A,C
+     855/     54F : B7                  	OR	A
+     856/     550 : 28 07               	JR	Z,SHE
+     857/     552 : CD B8 08            	CALL	SKIPSP
+     858/     555 : 7E                  	LD	A,(HL)
+     859/     556 : B7                  	OR	A
+     860/     557 : 28 03               	JR	Z,SH2
+     861/     559 :                     SHE:
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 18 - 2023/01/06 14時27分15秒
+
+
+     862/     559 : C3 64 02            	JP	ERR
+     863/     55C :                     
+     864/     55C :                     SH2:
+     865/     55C : DD E5               	PUSH	IX
+     866/     55E : E1                  	POP	HL
+     867/     55F : EB                  	EX	DE,HL
+     868/     560 : 23                  	INC	HL
+     869/     561 : B7                  	OR	A
+     870/     562 : ED 52               	SBC	HL,DE		; HL = Length
+     871/     564 :                     SH3:
+     872/     564 : CD 84 05            	CALL	SHL
+     873/     567 : 7C                  	LD	A,H
+     874/     568 : B5                  	OR	L
+     875/     569 : 20 F9               	JR	NZ,SH3
+     876/     56B :                     
+     877/     56B : 3A 19 8F            	LD	A,(HEXMOD)
+     878/     56E : FE 49               	CP	'I'
+     879/     570 : 20 09               	JR	NZ,SH4
+     880/     572 :                     	;; End record for Intel HEX
+     881/     572 : 21 4A 0A            	LD	HL,IHEXER
+     882/     575 : CD 16 08            	CALL	STROUT
+     883/     578 : C3 23 02            	JP	WSTART
+     884/     57B :                     SH4:
+     885/     57B :                     	;; End record for Motorola S record
+     886/     57B : 21 58 0A            	LD	HL,SRECER
+     887/     57E : CD 16 08            	CALL	STROUT
+     888/     581 : C3 23 02            	JP	WSTART
+     889/     584 :                     
+     890/     584 :                     SHL:
+     891/     584 : 0E 10               	LD	C,16
+     892/     586 : 7C                  	LD	A,H
+     893/     587 : B7                  	OR	A
+     894/     588 : 20 05               	JR	NZ,SHL0
+     895/     58A : 7D                  	LD	A,L
+     896/     58B : B9                  	CP	C
+     897/     58C : 30 01               	JR	NC,SHL0
+     898/     58E : 4F                  	LD	C,A
+     899/     58F :                     SHL0:
+     900/     58F : 06 00               	LD	B,0
+     901/     591 : B7                  	OR	A
+     902/     592 : ED 42               	SBC	HL,BC
+     903/     594 : 41                  	LD	B,C
+     904/     595 :                     
+     905/     595 : 3A 19 8F            	LD	A,(HEXMOD)
+     906/     598 : FE 49               	CP	'I'
+     907/     59A : 20 30               	JR	NZ,SHLS
+     908/     59C :                     
+     909/     59C :                     	;; Intel HEX
+     910/     59C : 3E 3A               	LD	A,':'
+     911/     59E : CD DF 0C            	CALL	CONOUT
+     912/     5A1 :                     
+     913/     5A1 : 78                  	LD	A,B
+     914/     5A2 : CD 24 08            	CALL	HEXOUT2		; Length
+     915/     5A5 : 48                  	LD	C,B		; Checksum
+     916/     5A6 :                     
+     917/     5A6 : 7A                  	LD	A,D
+     918/     5A7 : CD 24 08            	CALL	HEXOUT2
+     919/     5AA : 7A                  	LD	A,D
+     920/     5AB : 81                  	ADD	A,C
+     921/     5AC : 4F                  	LD	C,A
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 19 - 2023/01/06 14時27分15秒
+
+
+     922/     5AD :                     
+     923/     5AD : 7B                  	LD	A,E
+     924/     5AE : CD 24 08            	CALL	HEXOUT2
+     925/     5B1 : 7B                  	LD	A,E
+     926/     5B2 : 81                  	ADD	A,C
+     927/     5B3 : 4F                  	LD	C,A
+     928/     5B4 :                     
+     929/     5B4 : AF                  	XOR	A
+     930/     5B5 : CD 24 08            	CALL	HEXOUT2
+     931/     5B8 :                     SHLI0:
+     932/     5B8 : 1A                  	LD	A,(DE)
+     933/     5B9 : F5                  	PUSH	AF
+     934/     5BA : CD 24 08            	CALL	HEXOUT2
+     935/     5BD : F1                  	POP	AF
+     936/     5BE : 81                  	ADD	A,C
+     937/     5BF : 4F                  	LD	C,A
+     938/     5C0 :                     
+     939/     5C0 : 13                  	INC	DE
+     940/     5C1 : 10 F5               	DJNZ	SHLI0
+     941/     5C3 :                     
+     942/     5C3 : 79                  	LD	A,C
+     943/     5C4 : ED 44               	NEG	A
+     944/     5C6 : CD 24 08            	CALL	HEXOUT2
+     945/     5C9 : C3 62 08            	JP	CRLF
+     946/     5CC :                     
+     947/     5CC :                     SHLS:
+     948/     5CC :                     	;; Motorola S record
+     949/     5CC : 3E 53               	LD	A,'S'
+     950/     5CE : CD DF 0C            	CALL	CONOUT
+     951/     5D1 : 3E 31               	LD	A,'1'
+     952/     5D3 : CD DF 0C            	CALL	CONOUT
+     953/     5D6 :                     
+     954/     5D6 : 78                  	LD	A,B
+     955/     5D7 : C6 03               	ADD	A,2+1		; DataLength + 2(Addr) + 1(Sum)
+     956/     5D9 : 4F                  	LD	C,A
+     957/     5DA : CD 24 08            	CALL	HEXOUT2
+     958/     5DD :                     
+     959/     5DD : 7A                  	LD	A,D
+     960/     5DE : CD 24 08            	CALL	HEXOUT2
+     961/     5E1 : 7A                  	LD	A,D
+     962/     5E2 : 81                  	ADD	A,C
+     963/     5E3 : 4F                  	LD	C,A
+     964/     5E4 :                     
+     965/     5E4 : 7B                  	LD	A,E
+     966/     5E5 : CD 24 08            	CALL	HEXOUT2
+     967/     5E8 : 7B                  	LD	A,E
+     968/     5E9 : 81                  	ADD	A,C
+     969/     5EA : 4F                  	LD	C,A
+     970/     5EB :                     SHLS0:
+     971/     5EB : 1A                  	LD	A,(DE)
+     972/     5EC : F5                  	PUSH	AF
+     973/     5ED : CD 24 08            	CALL	HEXOUT2		; Data
+     974/     5F0 : F1                  	POP	AF
+     975/     5F1 : 81                  	ADD	A,C
+     976/     5F2 : 4F                  	LD	C,A
+     977/     5F3 :                     
+     978/     5F3 : 13                  	INC	DE
+     979/     5F4 : 10 F5               	DJNZ	SHLS0
+     980/     5F6 :                     
+     981/     5F6 : 79                  	LD	A,C
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 20 - 2023/01/06 14時27分15秒
+
+
+     982/     5F7 : 2F                  	CPL
+     983/     5F8 : CD 24 08            	CALL	HEXOUT2
+     984/     5FB : C3 62 08            	JP	CRLF
+     985/     5FE :                     
+     986/     5FE :                     ;;;
+     987/     5FE :                     ;;; Port in
+     988/     5FE :                     ;;;
+     989/     5FE :                     
+     990/     5FE :                     PIN:
+     991/     5FE : 23                  	INC	HL
+     992/     5FF : AF                  	XOR	A
+     993/     600 : 32 1C 8F            	LD	(SIZE),A
+     994/     603 : 3A 1B 8F            	LD	A,(PSPEC)
+     995/     606 : FE 08               	CP	08H		; Z280
+     996/     608 : 20 10               	JR	NZ,PI1
+     997/     60A : 7E                  	LD	A,(HL)
+     998/     60B : CD BF 08            	CALL	UPPER
+     999/     60E : FE 57               	CP	'W'
+    1000/     610 : 28 04               	JR	Z,PI0
+    1001/     612 : FE 53               	CP	'S'
+    1002/     614 : 20 04               	JR	NZ,PI1
+    1003/     616 :                     PI0:
+    1004/     616 : 23                  	INC	HL
+    1005/     617 : 32 1C 8F            	LD	(SIZE),A
+    1006/     61A :                     PI1:
+    1007/     61A : CD B8 08            	CALL	SKIPSP
+    1008/     61D : CD C8 08            	CALL	RDHEX
+    1009/     620 : 79                  	LD	A,C
+    1010/     621 : B7                  	OR	A
+    1011/     622 : CA 64 02            	JP	Z,ERR		; Port no. missing
+    1012/     625 : CD B8 08            	CALL	SKIPSP
+    1013/     628 : 7E                  	LD	A,(HL)
+    1014/     629 : B7                  	OR	A
+    1015/     62A : C2 64 02            	JP	NZ,ERR
+    1016/     62D :                     
+    1017/     62D : 42                  	LD	B,D
+    1018/     62E : 4B                  	LD	C,E
+    1019/     62F :                     
+    1020/     62F : 3A 1C 8F            	LD	A,(SIZE)
+    1021/     632 : FE 57               	CP	'W'
+    1022/     634 : 28 32               	JR	Z,PIW
+    1023/     636 : FE 53               	CP	'S'
+    1024/     638 : 28 4B               	JR	Z,PIS
+    1025/     63A : 3A 1B 8F            	LD	A,(PSPEC)
+    1026/     63D : FE 08               	CP	08H		; Z280
+    1027/     63F : 28 0B               	JR	Z,PIB
+    1028/     641 :                     	;; Byte
+    1029/     641 : ED 78               	IN	A,(C)
+    1030/     643 : CD 24 08            	CALL	HEXOUT2
+    1031/     646 : CD 62 08            	CALL	CRLF
+    1032/     649 : C3 23 02            	JP	WSTART
+    1033/     64C :                     	;; Byte (Z280 only)
+    1034/     64C :                     PIB:
+    1035/     64C : 0E 08               	LD	C,08		; I/O Bank register
+    1036/     64E : ED 66               	DB	0EDH,66H	; LDCTL HL,(C)
+    1037/     650 : E5                  	PUSH	HL
+    1038/     651 : 3A 1D 8F            	LD	A,(IOPAGE)
+    1039/     654 : 6F                  	LD	L,A
+    1040/     655 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1041/     657 : 4B                  	LD	C,E
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 21 - 2023/01/06 14時27分15秒
+
+
+    1042/     658 : ED 78               	IN	A,(C)
+    1043/     65A : 0E 08               	LD	C,08H		; I/O Bank register
+    1044/     65C : E1                  	POP	HL
+    1045/     65D : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1046/     65F : CD 24 08            	CALL	HEXOUT2
+    1047/     662 : CD 62 08            	CALL	CRLF
+    1048/     665 : C3 23 02            	JP	WSTART
+    1049/     668 :                     	;; Word (Z280 only)
+    1050/     668 :                     PIW:
+    1051/     668 : 0E 08               	LD	C,08		; I/O Bank register
+    1052/     66A : ED 66               	DB	0EDH,66H	; LDCTL HL,(C)
+    1053/     66C : E5                  	PUSH	HL
+    1054/     66D : 3A 1D 8F            	LD	A,(IOPAGE)
+    1055/     670 : 6F                  	LD	L,A
+    1056/     671 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1057/     673 : 4B                  	LD	C,E
+    1058/     674 : ED B7               	DB	0EDH,0B7H	; IN HL,(C)
+    1059/     676 : E3                  	EX	(SP),HL
+    1060/     677 : 0E 08               	LD	C,08H
+    1061/     679 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1062/     67B : E1                  	POP	HL
+    1063/     67C : CD 1F 08            	CALL	HEXOUT4
+    1064/     67F : CD 62 08            	CALL	CRLF
+    1065/     682 : C3 23 02            	JP	WSTART
+    1066/     685 :                     	;; Status (Z280 only)
+    1067/     685 :                     PIS:
+    1068/     685 : ED 66               	DB	0EDH,66H	; LDCTL HL,(C)
+    1069/     687 : CD 1F 08            	CALL	HEXOUT4
+    1070/     68A : CD 62 08            	CALL	CRLF
+    1071/     68D : C3 23 02            	JP	WSTART
+    1072/     690 :                     
+    1073/     690 :                     ;;;
+    1074/     690 :                     ;;; Port out
+    1075/     690 :                     ;;;
+    1076/     690 :                     
+    1077/     690 :                     POUT:
+    1078/     690 : 23                  	INC	HL
+    1079/     691 : AF                  	XOR	A
+    1080/     692 : 32 1C 8F            	LD	(SIZE),A
+    1081/     695 : 3A 1B 8F            	LD	A,(PSPEC)
+    1082/     698 : FE 08               	CP	08H		; Z280
+    1083/     69A : 20 10               	JR	NZ,PO1
+    1084/     69C : 7E                  	LD	A,(HL)
+    1085/     69D : CD BF 08            	CALL	UPPER
+    1086/     6A0 : FE 57               	CP	'W'
+    1087/     6A2 : 28 04               	JR	Z,PO0
+    1088/     6A4 : FE 53               	CP	'S'
+    1089/     6A6 : 20 04               	JR	NZ,PO1
+    1090/     6A8 :                     PO0:
+    1091/     6A8 : 23                  	INC	HL
+    1092/     6A9 : 32 1C 8F            	LD	(SIZE),A
+    1093/     6AC :                     PO1:
+    1094/     6AC : CD B8 08            	CALL	SKIPSP
+    1095/     6AF : CD C8 08            	CALL	RDHEX
+    1096/     6B2 : 79                  	LD	A,C
+    1097/     6B3 : B7                  	OR	A
+    1098/     6B4 : CA 64 02            	JP	Z,ERR		; Port no. missing
+    1099/     6B7 : D5                  	PUSH	DE
+    1100/     6B8 : DD E1               	POP	IX
+    1101/     6BA : CD B8 08            	CALL	SKIPSP
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 22 - 2023/01/06 14時27分15秒
+
+
+    1102/     6BD : 7E                  	LD	A,(HL)
+    1103/     6BE : FE 2C               	CP	','
+    1104/     6C0 : C2 64 02            	JP	NZ,ERR
+    1105/     6C3 : 23                  	INC	HL
+    1106/     6C4 : CD B8 08            	CALL	SKIPSP
+    1107/     6C7 : CD C8 08            	CALL	RDHEX
+    1108/     6CA : 79                  	LD	A,C
+    1109/     6CB : B7                  	OR	A
+    1110/     6CC : CA 64 02            	JP	Z,ERR		; Data missing
+    1111/     6CF : CD B8 08            	CALL	SKIPSP
+    1112/     6D2 : 7E                  	LD	A,(HL)
+    1113/     6D3 : B7                  	OR	A
+    1114/     6D4 : C2 64 02            	JP	NZ,ERR
+    1115/     6D7 :                     
+    1116/     6D7 : DD E5               	PUSH	IX
+    1117/     6D9 : C1                  	POP	BC
+    1118/     6DA :                     
+    1119/     6DA : 3A 1C 8F            	LD	A,(SIZE)
+    1120/     6DD : FE 57               	CP	'W'
+    1121/     6DF : 28 27               	JR	Z,POW
+    1122/     6E1 : FE 53               	CP	'S'
+    1123/     6E3 : 28 3D               	JR	Z,POS
+    1124/     6E5 : 3A 1B 8F            	LD	A,(PSPEC)
+    1125/     6E8 : FE 08               	CP	08H		; Z280
+    1126/     6EA : 28 05               	JR	Z,POB
+    1127/     6EC :                     	;; Byte
+    1128/     6EC : ED 59               	OUT	(C),E
+    1129/     6EE : C3 23 02            	JP	WSTART
+    1130/     6F1 :                     	;; Byte (Z280 only)
+    1131/     6F1 :                     POB:
+    1132/     6F1 : C5                  	PUSH	BC
+    1133/     6F2 : 0E 08               	LD	C,08		; I/O Bank register
+    1134/     6F4 : ED 66               	DB	0EDH,66H	; LDCTL HL,(C)
+    1135/     6F6 : 55                  	LD	D,L
+    1136/     6F7 : 3A 1D 8F            	LD	A,(IOPAGE)
+    1137/     6FA : 6F                  	LD	L,A
+    1138/     6FB : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1139/     6FD : C1                  	POP	BC
+    1140/     6FE : ED 59               	OUT	(C),E
+    1141/     700 : 0E 08               	LD	C,08H		; I/O Bank register
+    1142/     702 : 6A                  	LD	L,D
+    1143/     703 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1144/     705 : C3 23 02            	JP	WSTART
+    1145/     708 :                     	;; Word (Z280 only)
+    1146/     708 :                     POW:
+    1147/     708 : DD 69               	DB	0DDH,69H	; LD IXL,C
+    1148/     70A : 0E 08               	LD	C,08		; I/O Bank register
+    1149/     70C : ED 66               	DB	0EDH,66H	; LDCTL HL,(C)
+    1150/     70E : E5                  	PUSH	HL
+    1151/     70F : 3A 1D 8F            	LD	A,(IOPAGE)
+    1152/     712 : 6F                  	LD	L,A
+    1153/     713 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1154/     715 : DD 4D               	DB	0DDH,4DH	; LD C,IXL
+    1155/     717 : EB                  	EX	DE,HL
+    1156/     718 : ED BF               	DB	0EDH,0BFH	; OUT (C),HL
+    1157/     71A : 0E 08               	LD	C,08H		; I/O Bank register
+    1158/     71C : E1                  	POP	HL
+    1159/     71D : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1160/     71F : C3 23 02            	JP	WSTART
+    1161/     722 :                     	;; Control (Z280 only)
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 23 - 2023/01/06 14時27分15秒
+
+
+    1162/     722 :                     POS:
+    1163/     722 : EB                  	EX	DE,HL
+    1164/     723 : ED 6E               	DB	0EDH,6EH	; LDCTL (C),HL
+    1165/     725 : C3 23 02            	JP	WSTART
+    1166/     728 :                     
+    1167/     728 :                     ;;;
+    1168/     728 :                     ;;; I/O Bank
+    1169/     728 :                     ;;;
+    1170/     728 :                     
+    1171/     728 :                     PBANK:
+    1172/     728 : 3A 1B 8F            	LD	A,(PSPEC)
+    1173/     72B : FE 08               	CP	08H		; Z280
+    1174/     72D : C2 64 02            	JP	NZ,ERR
+    1175/     730 : 23                  	INC	HL
+    1176/     731 : CD B8 08            	CALL	SKIPSP
+    1177/     734 : CD C8 08            	CALL	RDHEX
+    1178/     737 : CD B8 08            	CALL	SKIPSP
+    1179/     73A : 7E                  	LD	A,(HL)
+    1180/     73B : B7                  	OR	A
+    1181/     73C : C2 64 02            	JP	NZ,ERR
+    1182/     73F : 79                  	LD	A,C
+    1183/     740 : B7                  	OR	A
+    1184/     741 : 28 07               	JR	Z,PB0
+    1185/     743 : 7B                  	LD	A,E
+    1186/     744 : 32 1D 8F            	LD	(IOPAGE),A
+    1187/     747 : C3 23 02            	JP	WSTART
+    1188/     74A :                     PB0:
+    1189/     74A : 3A 1D 8F            	LD	A,(IOPAGE)
+    1190/     74D : CD 24 08            	CALL	HEXOUT2
+    1191/     750 : CD 62 08            	CALL	CRLF
+    1192/     753 : C3 23 02            	JP	WSTART
+    1193/     756 :                     
+    1194/     756 :                     ;;;
+    1195/     756 :                     ;;; Register
+    1196/     756 :                     ;;;
+    1197/     756 :                     
+    1198/     756 : =>TRUE               	IF USE_REGCMD
+    1199/     756 :                     
+    1200/     756 :                     REG:
+    1201/     756 : 23                  	INC	HL
+    1202/     757 : CD B8 08            	CALL	SKIPSP
+    1203/     75A : CD BF 08            	CALL	UPPER
+    1204/     75D : B7                  	OR	A
+    1205/     75E : 20 06               	JR	NZ,RG0
+    1206/     760 : CD E6 07            	CALL	RDUMP
+    1207/     763 : C3 23 02            	JP	WSTART
+    1208/     766 :                     RG0:
+    1209/     766 : EB                  	EX	DE,HL
+    1210/     767 : 21 66 0B            	LD	HL,RNTAB
+    1211/     76A :                     RG1:
+    1212/     76A : BE                  	CP	(HL)
+    1213/     76B : 28 0D               	JR	Z,RG2		; Character match
+    1214/     76D : 4F                  	LD	C,A
+    1215/     76E : 23                  	INC	HL
+    1216/     76F : 7E                  	LD	A,(HL)
+    1217/     770 : B7                  	OR	A
+    1218/     771 : 28 70               	JR	Z,RGE		; Found end mark
+    1219/     773 : 79                  	LD	A,C
+    1220/     774 : 01 05 00            	LD	BC,5
+    1221/     777 : 09                  	ADD	HL,BC		; Next entry
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 24 - 2023/01/06 14時27分15秒
+
+
+    1222/     778 : 18 F0               	JR	RG1
+    1223/     77A :                     RG2:
+    1224/     77A : 23                  	INC	HL
+    1225/     77B : 7E                  	LD	A,(HL)
+    1226/     77C : FE 0F               	CP	0FH		; Link code
+    1227/     77E : 20 0C               	JR	NZ,RG3
+    1228/     780 :                     	;; Next table
+    1229/     780 : 23                  	INC	HL
+    1230/     781 : 4E                  	LD	C,(HL)
+    1231/     782 : 23                  	INC	HL
+    1232/     783 : 66                  	LD	H,(HL)
+    1233/     784 : 69                  	LD	L,C
+    1234/     785 : 13                  	INC	DE
+    1235/     786 : 1A                  	LD	A,(DE)
+    1236/     787 : CD BF 08            	CALL	UPPER
+    1237/     78A : 18 DE               	JR	RG1
+    1238/     78C :                     RG3:
+    1239/     78C : B7                  	OR	A
+    1240/     78D : 28 54               	JR	Z,RGE		; Found end mark
+    1241/     78F :                     
+    1242/     78F : 4E                  	LD	C,(HL)		; LD C,A???
+    1243/     790 : 23                  	INC	HL
+    1244/     791 : 5E                  	LD	E,(HL)
+    1245/     792 : 23                  	INC	HL
+    1246/     793 : 56                  	LD	D,(HL)
+    1247/     794 : D5                  	PUSH	DE		; Reg storage address
+    1248/     795 : 23                  	INC	HL
+    1249/     796 : 7E                  	LD	A,(HL)
+    1250/     797 : 23                  	INC	HL
+    1251/     798 : 66                  	LD	H,(HL)
+    1252/     799 : 6F                  	LD	L,A		; HL: Reg name
+    1253/     79A : CD 16 08            	CALL	STROUT
+    1254/     79D : 3E 3D               	LD	A,'='
+    1255/     79F : CD DF 0C            	CALL	CONOUT
+    1256/     7A2 :                     
+    1257/     7A2 : 79                  	LD	A,C
+    1258/     7A3 : E6 07               	AND	07H
+    1259/     7A5 : FE 01               	CP	1
+    1260/     7A7 : 20 08               	JR	NZ,RG4
+    1261/     7A9 :                     	;; 8 bit register
+    1262/     7A9 : E1                  	POP	HL
+    1263/     7AA : 7E                  	LD	A,(HL)
+    1264/     7AB : E5                  	PUSH	HL
+    1265/     7AC : CD 24 08            	CALL	HEXOUT2
+    1266/     7AF : 18 0C               	JR	RG5
+    1267/     7B1 :                     RG4:
+    1268/     7B1 :                     	;; 16 bit register
+    1269/     7B1 : E1                  	POP	HL
+    1270/     7B2 : E5                  	PUSH	HL
+    1271/     7B3 : 23                  	INC	HL
+    1272/     7B4 : 7E                  	LD	A,(HL)
+    1273/     7B5 : CD 24 08            	CALL	HEXOUT2
+    1274/     7B8 : 2B                  	DEC	HL
+    1275/     7B9 : 7E                  	LD	A,(HL)
+    1276/     7BA : CD 24 08            	CALL	HEXOUT2
+    1277/     7BD :                     RG5:
+    1278/     7BD : 3E 20               	LD	A,' '
+    1279/     7BF : CD DF 0C            	CALL	CONOUT
+    1280/     7C2 : C5                  	PUSH	BC		; C: reg size
+    1281/     7C3 : CD 6C 08            	CALL	GETLIN
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 25 - 2023/01/06 14時27分15秒
+
+
+    1282/     7C6 : 21 00 8F            	LD	HL,INBUF
+    1283/     7C9 : CD B8 08            	CALL	SKIPSP
+    1284/     7CC : CD C8 08            	CALL	RDHEX
+    1285/     7CF : 79                  	LD	A,C
+    1286/     7D0 : B7                  	OR	A
+    1287/     7D1 : 28 0D               	JR	Z,RGR
+    1288/     7D3 : C1                  	POP	BC
+    1289/     7D4 : E1                  	POP	HL
+    1290/     7D5 : 79                  	LD	A,C
+    1291/     7D6 : FE 01               	CP	1
+    1292/     7D8 : 20 03               	JR	NZ,RG6
+    1293/     7DA :                     	;; 8 bit register
+    1294/     7DA : 73                  	LD	(HL),E
+    1295/     7DB : 18 03               	JR	RG7
+    1296/     7DD :                     RG6:
+    1297/     7DD :                     	;; 16 bit register
+    1298/     7DD : 73                  	LD	(HL),E
+    1299/     7DE : 23                  	INC	HL
+    1300/     7DF : 72                  	LD	(HL),D
+    1301/     7E0 :                     RG7:
+    1302/     7E0 :                     RGR:
+    1303/     7E0 : C3 23 02            	JP	WSTART
+    1304/     7E3 :                     RGE:
+    1305/     7E3 : C3 64 02            	JP	ERR
+    1306/     7E6 :                     
+    1307/     7E6 :                     RDUMP:
+    1308/     7E6 : 21 BB 0A            	LD	HL,RDTAB
+    1309/     7E9 :                     RD0:
+    1310/     7E9 : 5E                  	LD	E,(HL)
+    1311/     7EA : 23                  	INC	HL
+    1312/     7EB : 56                  	LD	D,(HL)
+    1313/     7EC : 23                  	INC	HL
+    1314/     7ED : 7A                  	LD	A,D
+    1315/     7EE : B3                  	OR	E
+    1316/     7EF : CA 62 08            	JP	Z,CRLF		; End
+    1317/     7F2 : EB                  	EX	DE,HL
+    1318/     7F3 : CD 16 08            	CALL	STROUT
+    1319/     7F6 : EB                  	EX	DE,HL
+    1320/     7F7 :                     
+    1321/     7F7 : 5E                  	LD	E,(HL)
+    1322/     7F8 : 23                  	INC	HL
+    1323/     7F9 : 56                  	LD	D,(HL)
+    1324/     7FA : 23                  	INC	HL
+    1325/     7FB : 7E                  	LD	A,(HL)
+    1326/     7FC : 23                  	INC	HL
+    1327/     7FD : EB                  	EX	DE,HL
+    1328/     7FE : FE 01               	CP	1
+    1329/     800 : 20 07               	JR	NZ,RD1
+    1330/     802 :                     	;; 1 byte
+    1331/     802 : 7E                  	LD	A,(HL)
+    1332/     803 : CD 24 08            	CALL	HEXOUT2
+    1333/     806 : EB                  	EX	DE,HL
+    1334/     807 : 18 E0               	JR	RD0
+    1335/     809 :                     RD1:
+    1336/     809 :                     	;; 2 byte
+    1337/     809 : 23                  	INC	HL
+    1338/     80A : 7E                  	LD	A,(HL)
+    1339/     80B : CD 24 08            	CALL	HEXOUT2		; High byte
+    1340/     80E : 2B                  	DEC	HL
+    1341/     80F : 7E                  	LD	A,(HL)
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 26 - 2023/01/06 14時27分15秒
+
+
+    1342/     810 : CD 24 08            	CALL	HEXOUT2		; Low byte
+    1343/     813 : EB                  	EX	DE,HL
+    1344/     814 : 18 D3               	JR	RD0
+    1345/     816 :                     
+    1346/     816 : [1198]               	ENDIF
+    1347/     816 :                     
+    1348/     816 :                     ;;;
+    1349/     816 :                     ;;; Other support routines
+    1350/     816 :                     ;;;
+    1351/     816 :                     
+    1352/     816 :                     STROUT:
+    1353/     816 : 7E                  	LD	A,(HL)
+    1354/     817 : A7                  	AND	A
+    1355/     818 : C8                  	RET	Z
+    1356/     819 : CD DF 0C            	CALL	CONOUT
+    1357/     81C : 23                  	INC	HL
+    1358/     81D : 18 F7               	JR	STROUT
+    1359/     81F :                     
+    1360/     81F :                     HEXOUT4:
+    1361/     81F : 7C                  	LD	A,H
+    1362/     820 : CD 24 08            	CALL	HEXOUT2
+    1363/     823 : 7D                  	LD	A,L
+    1364/     824 :                     HEXOUT2:
+    1365/     824 : F5                  	PUSH	AF
+    1366/     825 : 1F                  	RRA
+    1367/     826 : 1F                  	RRA
+    1368/     827 : 1F                  	RRA
+    1369/     828 : 1F                  	RRA
+    1370/     829 : CD 2D 08            	CALL	HEXOUT1
+    1371/     82C : F1                  	POP	AF
+    1372/     82D :                     HEXOUT1:
+    1373/     82D : E6 0F               	AND	0FH
+    1374/     82F : C6 30               	ADD	A,'0'
+    1375/     831 : FE 3A               	CP	'9'+1
+    1376/     833 : DA DF 0C            	JP	C,CONOUT
+    1377/     836 : C6 07               	ADD	A,'A'-'9'-1
+    1378/     838 : C3 DF 0C            	JP	CONOUT
+    1379/     83B :                     
+    1380/     83B :                     HEXIN:
+    1381/     83B : AF                  	XOR	A
+    1382/     83C : CD 43 08            	CALL	HI0
+    1383/     83F : 07                  	RLCA
+    1384/     840 : 07                  	RLCA
+    1385/     841 : 07                  	RLCA
+    1386/     842 : 07                  	RLCA
+    1387/     843 :                     HI0:
+    1388/     843 : C5                  	PUSH	BC
+    1389/     844 : 4F                  	LD	C,A
+    1390/     845 : CD CE 0C            	CALL	CONIN
+    1391/     848 : CD BF 08            	CALL	UPPER
+    1392/     84B : FE 30               	CP	'0'
+    1393/     84D : 38 11               	JR	C,HIR
+    1394/     84F : FE 3A               	CP	'9'+1
+    1395/     851 : 38 0A               	JR	C,HI1
+    1396/     853 : FE 41               	CP	'A'
+    1397/     855 : 38 09               	JR	C,HIR
+    1398/     857 : FE 47               	CP	'F'+1
+    1399/     859 : 30 05               	JR	NC,HIR
+    1400/     85B : D6 07               	SUB	A,'A'-'9'-1
+    1401/     85D :                     HI1:
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 27 - 2023/01/06 14時27分15秒
+
+
+    1402/     85D : D6 30               	SUB	A,'0'
+    1403/     85F : B1                  	OR	C
+    1404/     860 :                     HIR:
+    1405/     860 : C1                  	POP	BC
+    1406/     861 : C9                  	RET
+    1407/     862 :                     
+    1408/     862 :                     CRLF:
+    1409/     862 : 3E 0D               	LD	A,CR
+    1410/     864 : CD DF 0C            	CALL	CONOUT
+    1411/     867 : 3E 0A               	LD	A,LF
+    1412/     869 : C3 DF 0C            	JP	CONOUT
+    1413/     86C :                     
+    1414/     86C :                     GETLIN:
+    1415/     86C : 21 00 8F            	LD	HL,INBUF
+    1416/     86F : 06 00               	LD	B,0
+    1417/     871 :                     GL0:
+    1418/     871 : CD CE 0C            	CALL	CONIN
+    1419/     874 : FE 0D               	CP	CR
+    1420/     876 : 28 3A               	JR	Z,GLE
+    1421/     878 : FE 0A               	CP	LF
+    1422/     87A : 28 36               	JR	Z,GLE
+    1423/     87C : FE 08               	CP	BS
+    1424/     87E : 28 1B               	JR	Z,GLB
+    1425/     880 : FE 7F               	CP	DEL
+    1426/     882 : 28 17               	JR	Z,GLB
+    1427/     884 : FE 20               	CP	' '
+    1428/     886 : 38 E9               	JR	C,GL0
+    1429/     888 : FE 80               	CP	80H
+    1430/     88A : 30 E5               	JR	NC,GL0
+    1431/     88C : 4F                  	LD	C,A
+    1432/     88D : 78                  	LD	A,B
+    1433/     88E : FE 0F               	CP	BUFLEN-1
+    1434/     890 : 30 DF               	JR	NC,GL0	; Too long
+    1435/     892 : 04                  	INC	B
+    1436/     893 : 79                  	LD	A,C
+    1437/     894 : CD DF 0C            	CALL	CONOUT
+    1438/     897 : 77                  	LD	(HL),A
+    1439/     898 : 23                  	INC	HL
+    1440/     899 : 18 D6               	JR	GL0
+    1441/     89B :                     GLB:
+    1442/     89B : 78                  	LD	A,B
+    1443/     89C : A7                  	AND	A
+    1444/     89D : 28 D2               	JR	Z,GL0
+    1445/     89F : 05                  	DEC	B
+    1446/     8A0 : 2B                  	DEC	HL
+    1447/     8A1 : 3E 08               	LD	A,08H
+    1448/     8A3 : CD DF 0C            	CALL	CONOUT
+    1449/     8A6 : 3E 20               	LD	A,' '
+    1450/     8A8 : CD DF 0C            	CALL	CONOUT
+    1451/     8AB : 3E 08               	LD	A,08H
+    1452/     8AD : CD DF 0C            	CALL	CONOUT
+    1453/     8B0 : 18 BF               	JR	GL0
+    1454/     8B2 :                     GLE:
+    1455/     8B2 : CD 62 08            	CALL	CRLF
+    1456/     8B5 : 36 00               	LD	(HL),00H
+    1457/     8B7 : C9                  	RET
+    1458/     8B8 :                     
+    1459/     8B8 :                     SKIPSP:
+    1460/     8B8 : 7E                  	LD	A,(HL)
+    1461/     8B9 : FE 20               	CP	A,' '
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 28 - 2023/01/06 14時27分15秒
+
+
+    1462/     8BB : C0                  	RET	NZ
+    1463/     8BC : 23                  	INC	HL
+    1464/     8BD : 18 F9               	JR	SKIPSP
+    1465/     8BF :                     
+    1466/     8BF :                     UPPER:
+    1467/     8BF : FE 61               	CP	'a'
+    1468/     8C1 : D8                  	RET	C
+    1469/     8C2 : FE 7B               	CP	'z'+1
+    1470/     8C4 : D0                  	RET	NC
+    1471/     8C5 : C6 E0               	ADD	A,'A'-'a'
+    1472/     8C7 : C9                  	RET
+    1473/     8C8 :                     
+    1474/     8C8 :                     RDHEX:
+    1475/     8C8 : 0E 00               	LD	C,0
+    1476/     8CA : 11 00 00            	LD	DE,0
+    1477/     8CD :                     RH0:
+    1478/     8CD : 7E                  	LD	A,(HL)
+    1479/     8CE : CD BF 08            	CALL	UPPER
+    1480/     8D1 : FE 30               	CP	'0'
+    1481/     8D3 : 38 2C               	JR	C,RHE
+    1482/     8D5 : FE 3A               	CP	'9'+1
+    1483/     8D7 : 38 0A               	JR	C,RH1
+    1484/     8D9 : FE 41               	CP	'A'
+    1485/     8DB : 38 24               	JR	C,RHE
+    1486/     8DD : FE 47               	CP	'F'+1
+    1487/     8DF : 30 20               	JR	NC,RHE
+    1488/     8E1 : D6 07               	SUB	'A'-'9'-1
+    1489/     8E3 :                     RH1:
+    1490/     8E3 : D6 30               	SUB	'0'
+    1491/     8E5 : 17                  	RLA
+    1492/     8E6 : 17                  	RLA
+    1493/     8E7 : 17                  	RLA
+    1494/     8E8 : 17                  	RLA
+    1495/     8E9 : 17                  	RLA
+    1496/     8EA : CB 13               	RL	E
+    1497/     8EC : CB 12               	RL	D
+    1498/     8EE : 17                  	RLA
+    1499/     8EF : CB 13               	RL	E
+    1500/     8F1 : CB 12               	RL	D
+    1501/     8F3 : 17                  	RLA
+    1502/     8F4 : CB 13               	RL	E
+    1503/     8F6 : CB 12               	RL	D
+    1504/     8F8 : 17                  	RLA
+    1505/     8F9 : CB 13               	RL	E
+    1506/     8FB : CB 12               	RL	D
+    1507/     8FD : 23                  	INC	HL
+    1508/     8FE : 0C                  	INC	C
+    1509/     8FF : 18 CC               	JR	RH0
+    1510/     901 :                     RHE:
+    1511/     901 : C9                  	RET
+    1512/     902 :                     
+    1513/     902 :                     ;;;
+    1514/     902 :                     ;;; RST 30H Handler
+    1515/     902 :                     ;;;
+    1516/     902 :                     
+    1517/     902 :                     RST30H:
+    1518/     902 : =>TRUE               	IF USE_NEWAPI
+    1519/     902 :                     
+    1520/     902 : E5                  	PUSH	HL
+    1521/     903 : C5                  	PUSH	BC
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 29 - 2023/01/06 14時27分15秒
+
+
+    1522/     904 : 21 12 09            	LD	HL,APITBL
+    1523/     907 : 06 00               	LD	B,0
+    1524/     909 : 09                  	ADD	HL,BC
+    1525/     90A : 09                  	ADD	HL,BC
+    1526/     90B : 46                  	LD	B,(HL)
+    1527/     90C : 23                  	INC	HL
+    1528/     90D : 66                  	LD	H,(HL)
+    1529/     90E : 68                  	LD	L,B
+    1530/     90F : C1                  	POP	BC
+    1531/     910 : E3                  	EX	(SP),HL		; Restore HL, jump address on stack top
+    1532/     911 : C9                  	RET
+    1533/     912 :                     
+    1534/     912 :                     APITBL:
+    1535/     912 : 20 09               	DW	API00		; 00: CSTART
+    1536/     914 : 25 09               	DW	API01		; 01: WSTART
+    1537/     916 : DF 0C               	DW	CONOUT		; 02: CONOUT
+    1538/     918 : 16 08               	DW	STROUT		; 03: STROUT
+    1539/     91A : CE 0C               	DW	CONIN		; 04: CONIN
+    1540/     91C : D9 0C               	DW	CONST		; 05: CONST
+    1541/     91E : 29 09               	DW	API06		; 06: PSPEC
+    1542/     920 :                     
+    1543/     920 :                     	;; CSTART
+    1544/     920 :                     API00:
+    1545/     920 : E1                  	POP	HL		; Drop return address
+    1546/     921 : F3                  	DI
+    1547/     922 : C3 00 01            	JP	CSTART
+    1548/     925 :                     
+    1549/     925 :                     	;; WSTART
+    1550/     925 :                     API01:
+    1551/     925 : E1                  	POP	HL		; Drop return address
+    1552/     926 : C3 23 02            	JP	WSTART
+    1553/     929 :                     
+    1554/     929 :                     	;; PSPEC
+    1555/     929 :                     API06:
+    1556/     929 : 3A 1B 8F            	LD	A,(PSPEC)
+    1557/     92C : C9                  	RET
+    1558/     92D :                     
+    1559/     92D : =>FALSE              	ELSE			; USE_NEWAPI
+    1560/     92D :                     
+    1561/     92D :                     	RET
+    1562/     92D :                     
+    1563/     92D : [1518]               	ENDIF			; USE_NEWAPI
+    1564/     92D :                     
+    1565/     92D :                     ;;;
+    1566/     92D :                     ;;; RST 38H Handler
+    1567/     92D :                     ;;;
+    1568/     92D :                     
+    1569/     92D :                     RST38H:
+    1570/     92D : =>TRUE               	IF USE_REGCMD
+    1571/     92D :                     
+    1572/     92D : F5                  	PUSH	AF
+    1573/     92E : ED 5F               	LD	A,R
+    1574/     930 : 32 37 8F            	LD	(REGR),A
+    1575/     933 : ED 57               	LD	A,I
+    1576/     935 : 32 36 8F            	LD	(REGI),A
+    1577/     938 : 22 24 8F            	LD	(REGHL),HL
+    1578/     93B : ED 53 22 8F         	LD	(REGDE),DE
+    1579/     93F : ED 43 20 8F         	LD	(REGBC),BC
+    1580/     943 : E1                  	POP	HL
+    1581/     944 : 22 1E 8F            	LD	(REGAF),HL
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 30 - 2023/01/06 14時27分15秒
+
+
+    1582/     947 : 08                  	EX	AF,AF'
+    1583/     948 : F5                  	PUSH	AF
+    1584/     949 : D9                  	EXX
+    1585/     94A : 22 2C 8F            	LD	(REGHLX),HL
+    1586/     94D : ED 53 2A 8F         	LD	(REGDEX),DE
+    1587/     951 : ED 43 28 8F         	LD	(REGBCX),BC
+    1588/     955 : E1                  	POP	HL
+    1589/     956 : 22 26 8F            	LD	(REGAFX),HL
+    1590/     959 : DD 22 2E 8F         	LD	(REGIX),IX
+    1591/     95D : FD 22 30 8F         	LD	(REGIY),IY
+    1592/     961 : E1                  	POP	HL
+    1593/     962 : 2B                  	DEC	HL
+    1594/     963 : 22 34 8F            	LD	(REGPC),HL
+    1595/     966 : ED 73 32 8F         	LD	(REGSP),SP
+    1596/     96A :                     
+    1597/     96A :                     	;; R register adjustment
+    1598/     96A : =>TRUE               	IF USE_IDENT
+    1599/     96A : 3A 1B 8F            	LD	A,(PSPEC)
+    1600/     96D : FE 08               	CP	08H		; Z280
+    1601/     96F : 28 1F               	JR	Z,R381
+    1602/     971 : FE 09               	CP	09H		; NSC800
+    1603/     973 : 28 13               	JR	Z,R380
+    1604/     975 : 3A 37 8F            	LD	A,(REGR)
+    1605/     978 : D6 05               	SUB	05H
+    1606/     97A : E6 7F               	AND	7FH
+    1607/     97C : 47                  	LD	B,A
+    1608/     97D : 3A 37 8F            	LD	A,(REGR)
+    1609/     980 : E6 80               	AND	80H
+    1610/     982 : B0                  	OR	B
+    1611/     983 : 32 37 8F            	LD	(REGR),A
+    1612/     986 : 18 08               	JR	R381
+    1613/     988 :                     R380:
+    1614/     988 : 3A 37 8F            	LD	A,(REGR)
+    1615/     98B : D6 05               	SUB	05H
+    1616/     98D : 32 37 8F            	LD	(REGR),A
+    1617/     990 :                     R381:
+    1618/     990 : [1598]               	ENDIF
+    1619/     990 :                     
+    1620/     990 : 21 AA 0A            	LD	HL,RST38MSG
+    1621/     993 : CD 16 08            	CALL	STROUT
+    1622/     996 : CD E6 07            	CALL	RDUMP
+    1623/     999 : C3 23 02            	JP	WSTART
+    1624/     99C :                     
+    1625/     99C : =>FALSE              	ELSE
+    1626/     99C :                     
+    1627/     99C :                     	RET
+    1628/     99C :                     
+    1629/     99C : [1570]               	ENDIF
+    1630/     99C :                     
+    1631/     99C :                     ;;; HD64180/Z180 TRAP Handler
+    1632/     99C :                     
+    1633/     99C : =>TRUE               	IF USE_180TRAP
+    1634/     99C :                     TRAPH:
+    1635/     99C : =>TRUE               	IF USE_REGCMD
+    1636/     99C :                     
+    1637/     99C : 3A 02 8F            	LD	A,(INBUF+2)
+    1638/     99F : 32 37 8F            	LD	(REGR),A
+    1639/     9A2 : ED 57               	LD	A,I
+    1640/     9A4 : 32 36 8F            	LD	(REGI),A
+    1641/     9A7 : 22 24 8F            	LD	(REGHL),HL
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 31 - 2023/01/06 14時27分15秒
+
+
+    1642/     9AA : ED 53 22 8F         	LD	(REGDE),DE
+    1643/     9AE : E1                  	POP	HL
+    1644/     9AF : 22 20 8F            	LD	(REGBC),HL
+    1645/     9B2 : E1                  	POP	HL
+    1646/     9B3 : 22 1E 8F            	LD	(REGAF),HL
+    1647/     9B6 : 08                  	EX	AF,AF'
+    1648/     9B7 : F5                  	PUSH	AF
+    1649/     9B8 : D9                  	EXX
+    1650/     9B9 : 22 2C 8F            	LD	(REGHLX),HL
+    1651/     9BC : ED 53 2A 8F         	LD	(REGDEX),DE
+    1652/     9C0 : ED 43 28 8F         	LD	(REGBCX),BC
+    1653/     9C4 : E1                  	POP	HL
+    1654/     9C5 : 22 26 8F            	LD	(REGAFX),HL
+    1655/     9C8 : DD 22 2E 8F         	LD	(REGIX),IX
+    1656/     9CC : FD 22 30 8F         	LD	(REGIY),IY
+    1657/     9D0 :                     
+    1658/     9D0 : ED 7B 00 8F         	LD	SP,(INBUF)	; Recover SP
+    1659/     9D4 : E1                  	POP	HL
+    1660/     9D5 : 06 0A               	LD	B,10		; for R register adjustment
+    1661/     9D7 : 3A 03 8F            	LD	A,(INBUF+3)	; ITC
+    1662/     9DA : E6 40               	AND	40H
+    1663/     9DC : 28 02               	JR	Z,TH0
+    1664/     9DE : 2B                  	DEC	HL
+    1665/     9DF : 04                  	INC	B
+    1666/     9E0 :                     TH0:
+    1667/     9E0 : 2B                  	DEC	HL
+    1668/     9E1 : 22 34 8F            	LD	(REGPC),HL
+    1669/     9E4 : ED 73 32 8F         	LD	(REGSP),SP
+    1670/     9E8 :                     
+    1671/     9E8 :                     	;; R register adjustment
+    1672/     9E8 : 3A 37 8F            	LD	A,(REGR)
+    1673/     9EB : 90                  	SUB	B
+    1674/     9EC : E6 7F               	AND	7FH
+    1675/     9EE : 47                  	LD	B,A
+    1676/     9EF : 3A 37 8F            	LD	A,(REGR)
+    1677/     9F2 : E6 80               	AND	80H
+    1678/     9F4 : B0                  	OR	B
+    1679/     9F5 : 32 37 8F            	LD	(REGR),A
+    1680/     9F8 :                     
+    1681/     9F8 : 21 B4 0A            	LD	HL,TRAPMSG
+    1682/     9FB : CD 16 08            	CALL	STROUT
+    1683/     9FE : CD E6 07            	CALL	RDUMP
+    1684/     A01 : C3 23 02            	JP	WSTART
+    1685/     A04 :                     
+    1686/     A04 : =>FALSE              	ELSE			; USE_REGCMD
+    1687/     A04 :                     
+    1688/     A04 :                     	LD	SP,(INBUF)	; Recover SP
+    1689/     A04 :                     	POP	HL		; Drop return address
+    1690/     A04 :                     
+    1691/     A04 :                     	LD	HL,TRAPMSG
+    1692/     A04 :                     	CALL	STROUT
+    1693/     A04 :                     	JP	WSTART
+    1694/     A04 :                     
+    1695/     A04 : [1635]               	ENDIF			; USE_REGCMD
+    1696/     A04 :                     
+    1697/     A04 : [1633]               	ENDIF			; USE_180TRAP
+    1698/     A04 :                     
+    1699/     A04 :                     ;;;
+    1700/     A04 :                     ;;; Messages
+    1701/     A04 :                     ;;;
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 32 - 2023/01/06 14時27分15秒
+
+
+    1702/     A04 :                     
+    1703/     A04 :                     OPNMSG:
+    1704/     A04 : 0D 0A 55 6E 69 76   	DB	CR,LF,"Universal Monitor Z80",CR,LF,00H
+              A0A : 65 72 73 61 6C 20 
+              A10 : 4D 6F 6E 69 74 6F 
+              A16 : 72 20 5A 38 30 0D 
+              A1C : 0A 00             
+    1705/     A1E :                     
+    1706/     A1E :                     PROMPT:
+    1707/     A1E : 5D 20 00            	DB	"] ",00H
+    1708/     A21 :                     
+    1709/     A21 :                     IHEMSG:
+    1710/     A21 : 45 72 72 6F 72 20   	DB	"Error ihex",CR,LF,00H
+              A27 : 69 68 65 78 0D 0A 
+              A2D : 00                
+    1711/     A2E :                     SHEMSG:
+    1712/     A2E : 45 72 72 6F 72 20   	DB	"Error srec",CR,LF,00H
+              A34 : 73 72 65 63 0D 0A 
+              A3A : 00                
+    1713/     A3B :                     ERRMSG:
+    1714/     A3B : 45 72 72 6F 72 0D   	DB	"Error",CR,LF,00H
+              A41 : 0A 00             
+    1715/     A43 :                     
+    1716/     A43 :                     DSEP0:
+    1717/     A43 : 20 3A 00            	DB	" :",00H
+    1718/     A46 :                     DSEP1:
+    1719/     A46 : 20 3A 20 00         	DB	" : ",00H
+    1720/     A4A :                     IHEXER:
+    1721/     A4A : 3A 30 30 30 30 30           DB	":00000001FF",CR,LF,00H
+              A50 : 30 30 31 46 46 0D 
+              A56 : 0A 00             
+    1722/     A58 :                     SRECER:
+    1723/     A58 : 53 39 30 33 30 30           DB	"S9030000FC",CR,LF,00H
+              A5E : 30 30 46 43 0D 0A 
+              A64 : 00                
+    1724/     A65 :                     
+    1725/     A65 : =>TRUE               	IF USE_IDENT
+    1726/     A65 :                     IM80:
+    1727/     A65 : 5A 38 30 0D 0A 00   	DB	"Z80",CR,LF,00H
+    1728/     A6B :                     IM180:
+    1729/     A6B : 48 44 36 34 31 38   	DB	"HD64180R",CR,LF,00H
+              A71 : 30 52 0D 0A 00    
+    1730/     A76 :                     IM180Z:
+    1731/     A76 : 48 44 36 34 31 38   	DB	"HD64180Z",CR,LF,00H
+              A7C : 30 5A 0D 0A 00    
+    1732/     A81 :                     IM1960:
+    1733/     A81 : 5A 38 53 31 38 30   	DB	"Z8S180 SL1960",CR,LF,00H
+              A87 : 20 53 4C 31 39 36 
+              A8D : 30 0D 0A 00       
+    1734/     A91 :                     IMZ8S:
+    1735/     A91 : 5A 38 53 31 38 30   	DB	"Z8S180",CR,LF,00H
+              A97 : 0D 0A 00          
+    1736/     A9A :                     IM280:
+    1737/     A9A : 5A 32 38 30 0D 0A   	DB	"Z280",CR,LF,00H
+              AA0 : 00                
+    1738/     AA1 :                     IMNSC:
+    1739/     AA1 : 4E 53 43 38 30 30   	DB	"NSC800",CR,LF,00H
+              AA7 : 0D 0A 00          
+    1740/     AAA : [1725]               	ENDIF
+    1741/     AAA :                     
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 33 - 2023/01/06 14時27分15秒
+
+
+    1742/     AAA :                     RST38MSG:
+    1743/     AAA : 52 53 54 20 33 38   	DB	"RST 38H",CR,LF,00H
+              AB0 : 48 0D 0A 00       
+    1744/     AB4 :                     
+    1745/     AB4 : =>TRUE               	IF USE_180TRAP
+    1746/     AB4 :                     TRAPMSG:
+    1747/     AB4 : 54 52 41 50 0D 0A   	DB	"TRAP",CR,LF,00H
+              ABA : 00                
+    1748/     ABB : [1745]               	ENDIF
+    1749/     ABB :                     
+    1750/     ABB : =>TRUE               	IF USE_REGCMD
+    1751/     ABB :                     
+    1752/     ABB :                     	;; Register dump table
+    1753/     ABB : 10 0B 1F 8F         RDTAB:	DW	RDSA,   REGAF+1
+    1754/     ABF : 01                  	DB	1
+    1755/     AC0 : 14 0B 20 8F         	DW	RDSBC,  REGBC
+    1756/     AC4 : 02                  	DB	2
+    1757/     AC5 : 1A 0B 22 8F         	DW	RDSDE,  REGDE
+    1758/     AC9 : 02                  	DB	2
+    1759/     ACA : 20 0B 24 8F         	DW	RDSHL,  REGHL
+    1760/     ACE : 02                  	DB	2
+    1761/     ACF : 26 0B 1E 8F         	DW	RDSF,   REGAF
+    1762/     AD3 : 01                  	DB	1
+    1763/     AD4 :                     
+    1764/     AD4 : 2B 0B 2E 8F         	DW	RDSIX,  REGIX
+    1765/     AD8 : 02                  	DB	2
+    1766/     AD9 : 31 0B 30 8F         	DW	RDSIY,  REGIY
+    1767/     ADD : 02                  	DB	2
+    1768/     ADE :                     
+    1769/     ADE : 36 0B 27 8F         	DW	RDSAX,  REGAFX+1
+    1770/     AE2 : 01                  	DB	1
+    1771/     AE3 : 3C 0B 28 8F         	DW	RDSBCX, REGBCX
+    1772/     AE7 : 02                  	DB	2
+    1773/     AE8 : 42 0B 2A 8F         	DW	RDSDEX, REGDEX
+    1774/     AEC : 02                  	DB	2
+    1775/     AED : 48 0B 2C 8F         	DW	RDSHLX, REGHLX
+    1776/     AF1 : 02                  	DB	2
+    1777/     AF2 : 4E 0B 26 8F         	DW	RDSFX,  REGAFX
+    1778/     AF6 : 01                  	DB	1
+    1779/     AF7 :                     
+    1780/     AF7 : 53 0B 32 8F         	DW	RDSSP,  REGSP
+    1781/     AFB : 02                  	DB	2
+    1782/     AFC : 59 0B 34 8F         	DW	RDSPC,  REGPC
+    1783/     B00 : 02                  	DB	2
+    1784/     B01 : 5E 0B 36 8F         	DW	RDSI,   REGI
+    1785/     B05 : 01                  	DB	1
+    1786/     B06 : 62 0B 37 8F         	DW	RDSR,   REGR
+    1787/     B0A : 01                  	DB	1
+    1788/     B0B :                     
+    1789/     B0B : 00 00 00 00         	DW	0000H,  0000H
+    1790/     B0F : 00                  	DB	0
+    1791/     B10 :                     
+    1792/     B10 : 41 20 3D 00         RDSA:	DB	"A =",00H
+    1793/     B14 : 20 42 43 20 3D 00   RDSBC:	DB	" BC =",00H
+    1794/     B1A : 20 44 45 20 3D 00   RDSDE:	DB	" DE =",00H
+    1795/     B20 : 20 48 4C 20 3D 00   RDSHL:	DB	" HL =",00H
+    1796/     B26 : 20 46 20 3D 00      RDSF:	DB	" F =",00H
+    1797/     B2B : 20 20 49 58 3D 00   RDSIX:	DB	"  IX=",00H
+    1798/     B31 : 20 49 59 3D 00      RDSIY:	DB	" IY=",00H
+    1799/     B36 : 0D 0A 41 27 3D 00   RDSAX:	DB	CR,LF,"A'=",00H
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 34 - 2023/01/06 14時27分15秒
+
+
+    1800/     B3C : 20 42 43 27 3D 00   RDSBCX:	DB	" BC'=",00H
+    1801/     B42 : 20 44 45 27 3D 00   RDSDEX:	DB	" DE'=",00H
+    1802/     B48 : 20 48 4C 27 3D 00   RDSHLX:	DB	" HL'=",00H
+    1803/     B4E : 20 46 27 3D 00      RDSFX:	DB	" F'=",00H
+    1804/     B53 : 20 20 53 50 3D 00   RDSSP:	DB	"  SP=",00H
+    1805/     B59 : 20 50 43 3D 00      RDSPC:	DB	" PC=",00H
+    1806/     B5E : 20 49 3D 00         RDSI:	DB	" I=",00H
+    1807/     B62 : 20 52 3D 00         RDSR:	DB	" R=",00H
+    1808/     B66 :                     
+    1809/     B66 :                     RNTAB:
+    1810/     B66 : 41 0F               	DB	'A',0FH		; "A?"
+    1811/     B68 : B0 0B 00 00         	DW	RNTABA,0
+    1812/     B6C : 42 0F               	DB	'B',0FH		; "B?"
+    1813/     B6E : BE 0B 00 00         	DW	RNTABB,0
+    1814/     B72 : 43 0F               	DB	'C',0FH		; "C?"
+    1815/     B74 : E0 0B 00 00         	DW	RNTABC,0
+    1816/     B78 : 44 0F               	DB	'D',0FH		; "D?"
+    1817/     B7A : EE 0B 00 00         	DW	RNTABD,0
+    1818/     B7E : 45 0F               	DB	'E',0FH		; "E?"
+    1819/     B80 : 10 0C 00 00         	DW	RNTABE,0
+    1820/     B84 : 46 0F               	DB	'F',0FH		; "F?"
+    1821/     B86 : 1E 0C 00 00         	DW	RNTABF,0
+    1822/     B8A : 48 0F               	DB	'H',0FH		; "H?"
+    1823/     B8C : 2C 0C 00 00         	DW	RNTABH,0
+    1824/     B90 : 49 0F               	DB	'I',0FH		; "I?"
+    1825/     B92 : 5C 0C 00 00         	DW	RNTABI,0
+    1826/     B96 : 4C 0F               	DB	'L',0FH		; "L?"
+    1827/     B98 : 4E 0C 00 00         	DW	RNTABL,0
+    1828/     B9C : 50 0F               	DB	'P',0FH		; "P?"
+    1829/     B9E : 70 0C 00 00         	DW	RNTABP,0
+    1830/     BA2 : 52 01               	DB	'R',1		; "R"
+    1831/     BA4 : 37 8F CB 0C         	DW	REGR,RNR
+    1832/     BA8 : 53 0F               	DB	'S',0FH		; "S?"
+    1833/     BAA : 78 0C 00 00         	DW	RNTABS,0
+    1834/     BAE :                     
+    1835/     BAE : 00 00               	DB	00H,0		; End mark
+    1836/     BB0 :                     
+    1837/     BB0 :                     RNTABA:
+    1838/     BB0 : 00 01               	DB	00H,1		; "A"
+    1839/     BB2 : 1F 8F 80 0C         	DW	REGAF+1,RNA
+    1840/     BB6 : 27 01               	DB	'\'',1		; "A'"
+    1841/     BB8 : 27 8F 99 0C         	DW	REGAFX+1,RNAX
+    1842/     BBC :                     
+    1843/     BBC : 00 00               	DB	00H,0
+    1844/     BBE :                     
+    1845/     BBE :                     RNTABB:
+    1846/     BBE : 00 01               	DB	00H,1		; "B"
+    1847/     BC0 : 21 8F 85 0C         	DW	REGBC+1,RNB
+    1848/     BC4 : 27 01               	DB	'\'',1		; "B'"
+    1849/     BC6 : 29 8F A0 0C         	DW	REGBCX+1,RNBX
+    1850/     BCA : 43 0F               	DB	'C',0FH		; "BC?"
+    1851/     BCC : D2 0B 00 00         	DW	RNTABBC,0
+    1852/     BD0 :                     
+    1853/     BD0 : 00 00               	DB	00H,0		; End mark
+    1854/     BD2 :                     
+    1855/     BD2 :                     RNTABBC:
+    1856/     BD2 : 00 02               	DB	00H,2		; "BC"
+    1857/     BD4 : 20 8F 82 0C         	DW	REGBC,RNBC
+    1858/     BD8 : 27 02               	DB	'\'',2		; "BC'"
+    1859/     BDA : 28 8F 9C 0C         	DW	REGBCX,RNBCX
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 35 - 2023/01/06 14時27分15秒
+
+
+    1860/     BDE :                     
+    1861/     BDE : 00 00               	DB	00H,0
+    1862/     BE0 :                     
+    1863/     BE0 :                     RNTABC:
+    1864/     BE0 : 00 01               	DB	00H,1		; "C"
+    1865/     BE2 : 20 8F 87 0C         	DW	REGBC,RNC
+    1866/     BE6 : 27 01               	DB	'\'',1		; "C'"
+    1867/     BE8 : 28 8F A3 0C         	DW	REGBCX,RNCX
+    1868/     BEC :                     
+    1869/     BEC : 00 00               	DB	00H,0
+    1870/     BEE :                     
+    1871/     BEE :                     RNTABD:
+    1872/     BEE : 00 01               	DB	00H,1		; "D"
+    1873/     BF0 : 23 8F 8C 0C         	DW	REGDE+1,RND
+    1874/     BF4 : 27 01               	DB	'\'',1		; "D'"
+    1875/     BF6 : 2B 8F AA 0C         	DW	REGDEX+1,RNDX
+    1876/     BFA : 45 0F               	DB	'E',0FH		; "DE?"
+    1877/     BFC : 02 0C 00 00         	DW	RNTABDE,0
+    1878/     C00 :                     
+    1879/     C00 : 00 00               	DB	00H,0
+    1880/     C02 :                     
+    1881/     C02 :                     RNTABDE:
+    1882/     C02 : 00 02               	DB	00H,2		; "DE"
+    1883/     C04 : 22 8F 89 0C         	DW	REGDE,RNDE
+    1884/     C08 : 27 02               	DB	'\'',2		; "DE'"
+    1885/     C0A : 2A 8F A6 0C         	DW	REGDEX,RNDEX
+    1886/     C0E :                     
+    1887/     C0E : 00 00               	DB	00H,0
+    1888/     C10 :                     
+    1889/     C10 :                     RNTABE:
+    1890/     C10 : 00 01               	DB	00H,1		; "E"
+    1891/     C12 : 22 8F 8E 0C         	DW	REGDE,RNE
+    1892/     C16 : 27 01               	DB	'\'',1		; "E'"
+    1893/     C18 : 2A 8F AD 0C         	DW	REGDEX,RNEX
+    1894/     C1C :                     
+    1895/     C1C : 00 00               	DB	00H,0
+    1896/     C1E :                     
+    1897/     C1E :                     RNTABF:
+    1898/     C1E : 00 01               	DB	00H,1		; "F"
+    1899/     C20 : 1E 8F 97 0C         	DW	REGAF,RNF
+    1900/     C24 : 27 01               	DB	'\'',1		; "F'"
+    1901/     C26 : 26 8F BA 0C         	DW	REGAFX,RNFX
+    1902/     C2A :                     
+    1903/     C2A : 00 00               	DB	00H,0
+    1904/     C2C :                     
+    1905/     C2C :                     RNTABH:
+    1906/     C2C : 00 01               	DB	00H,1		; "H"
+    1907/     C2E : 25 8F 93 0C         	DW	REGHL+1,RNH
+    1908/     C32 : 27 01               	DB	'\'',1		; "H'"
+    1909/     C34 : 2D 8F B4 0C         	DW	REGHLX+1,RNHX
+    1910/     C38 : 4C 0F               	DB	'L',0FH		; "HL?"
+    1911/     C3A : 40 0C 00 00         	DW	RNTABHL,0
+    1912/     C3E :                     
+    1913/     C3E : 00 00               	DB	00H,0
+    1914/     C40 :                     
+    1915/     C40 :                     RNTABHL:
+    1916/     C40 : 00 02               	DB	00H,2		; "HL"
+    1917/     C42 : 24 8F 90 0C         	DW	REGHL,RNHL
+    1918/     C46 : 27 02               	DB	'\'',2		; "HL'"
+    1919/     C48 : 2C 8F B0 0C         	DW	REGHLX,RNHLX
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 36 - 2023/01/06 14時27分15秒
+
+
+    1920/     C4C :                     
+    1921/     C4C : 00 00               	DB	00H,0
+    1922/     C4E :                     
+    1923/     C4E :                     RNTABL:
+    1924/     C4E : 00 01               	DB	00H,1		; "L"
+    1925/     C50 : 24 8F 95 0C         	DW	REGHL,RNL
+    1926/     C54 : 27 01               	DB	'\'',1		; "L'"
+    1927/     C56 : 2C 8F B7 0C         	DW	REGHLX,RNLX
+    1928/     C5A :                     
+    1929/     C5A : 00 00               	DB	00H,0
+    1930/     C5C :                     
+    1931/     C5C :                     RNTABI:
+    1932/     C5C : 00 01               	DB	00H,1		; "I"
+    1933/     C5E : 36 8F C9 0C         	DW	REGI,RNI
+    1934/     C62 : 58 02               	DB	'X',2		; "IX"
+    1935/     C64 : 2E 8F BD 0C         	DW	REGIX,RNIX
+    1936/     C68 : 59 02               	DB	'Y',2		; "IY"
+    1937/     C6A : 30 8F C0 0C         	DW	REGIY,RNIY
+    1938/     C6E :                     
+    1939/     C6E : 00 00               	DB	00H,0
+    1940/     C70 :                     
+    1941/     C70 :                     RNTABP:
+    1942/     C70 : 43 02               	DB	'C',2		; "PC"
+    1943/     C72 : 34 8F C6 0C         	DW	REGPC,RNPC
+    1944/     C76 :                     
+    1945/     C76 : 00 00               	DB	00H,0
+    1946/     C78 :                     
+    1947/     C78 :                     RNTABS:
+    1948/     C78 : 50 02               	DB	'P',2		; "SP"
+    1949/     C7A : 32 8F C3 0C         	DW	REGSP,RNSP
+    1950/     C7E :                     
+    1951/     C7E : 00 00               	DB	00H,0
+    1952/     C80 :                     
+    1953/     C80 : 41 00               RNA:	DB	"A",00H
+    1954/     C82 : 42 43 00            RNBC:	DB	"BC",00H
+    1955/     C85 : 42 00               RNB:	DB	"B",00H
+    1956/     C87 : 43 00               RNC:	DB	"C",00H
+    1957/     C89 : 44 45 00            RNDE:	DB	"DE",00H
+    1958/     C8C : 44 00               RND:	DB	"D",00H
+    1959/     C8E : 45 00               RNE:	DB	"E",00H
+    1960/     C90 : 48 4C 00            RNHL:	DB	"HL",00H
+    1961/     C93 : 48 00               RNH:	DB	"H",00H
+    1962/     C95 : 4C 00               RNL:	DB	"L",00H
+    1963/     C97 : 46 00               RNF:	DB	"F",00H
+    1964/     C99 : 41 27 00            RNAX:	DB	"A'",00H
+    1965/     C9C : 42 43 27 00         RNBCX:	DB	"BC'",00H
+    1966/     CA0 : 42 27 00            RNBX:	DB	"B'",00H
+    1967/     CA3 : 43 27 00            RNCX:	DB	"C'",00H
+    1968/     CA6 : 44 45 27 00         RNDEX:	DB	"DE'",00H
+    1969/     CAA : 44 27 00            RNDX:	DB	"D'",00H
+    1970/     CAD : 45 27 00            RNEX:	DB	"E'",00H
+    1971/     CB0 : 48 4C 27 00         RNHLX:	DB	"HL'",00H
+    1972/     CB4 : 48 27 00            RNHX:	DB	"H'",00H
+    1973/     CB7 : 4C 27 00            RNLX:	DB	"L'",00H
+    1974/     CBA : 46 27 00            RNFX:	DB	"F'",00H
+    1975/     CBD : 49 58 00            RNIX:	DB	"IX",00H
+    1976/     CC0 : 49 59 00            RNIY:	DB	"IY",00H
+    1977/     CC3 : 53 50 00            RNSP:	DB	"SP",00H
+    1978/     CC6 : 50 43 00            RNPC:	DB	"PC",00H
+    1979/     CC9 : 49 00               RNI:	DB	"I",00H
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 37 - 2023/01/06 14時27分15秒
+
+
+    1980/     CCB : 52 00               RNR:	DB	"R",00H
+    1981/     CCD :                     
+    1982/     CCD : [1750]               	ENDIF
+    1983/     CCD :                     
+    1984/     CCD :                     ;;;
+    1985/     CCD :                     ;;; Console drivers
+    1986/     CCD :                     ;;;
+    1987/     CCD :                     
+    1988/     CCD : =>FALSE              	IF USE_DEV_8251
+    1989/     CCD :                     	INCLUDE	"dev/dev_8251.asm"
+    1990/     CCD : [1988]               	ENDIF
+    1991/     CCD :                     
+    1992/     CCD : =>FALSE              	IF USE_DEV_Z80SIO
+    1993/     CCD :                     	INCLUDE	"dev/dev_z80sio.asm"
+    1994/     CCD : [1992]               	ENDIF
+    1995/     CCD :                     
+    1996/     CCD : =>FALSE              	IF USE_DEV_NSC858
+    1997/     CCD :                     	INCLUDE	"dev/dev_nsc858.asm"
+    1998/     CCD : [1996]               	ENDIF
+    1999/     CCD :                     
+    2000/     CCD : =>FALSE              	IF USE_DEV_Z280
+    2001/     CCD :                     	INCLUDE	"dev/dev_z280.asm"
+    2002/     CCD : [2000]               	ENDIF
+    2003/     CCD :                     
+    2004/     CCD : =>FALSE              	IF USE_DEV_64180
+    2005/     CCD :                     	INCLUDE	"dev/dev_64180.asm"
+    2006/     CCD : [2004]               	ENDIF
+    2007/     CCD :                     
+    2008/     CCD : =>FALSE              	IF USE_DEV_EMILY
+    2009/     CCD :                     	INCLUDE	"dev/dev_emily.asm"
+    2010/     CCD : [2008]               	ENDIF
+    2011/     CCD :                     
+    2012/     CCD : =>TRUE               	IF USE_DEV_EMUZ80
+    2013/     CCD :                     	INCLUDE	"dev/dev_emuz80.asm"
+(1)    1/     CCD :                     ;;;
+(1)    2/     CCD :                     ;;;
+(1)    3/     CCD :                     ;;;
+(1)    4/     CCD :                     
+(1)    5/     CCD :                     
+(1)    6/     CCD :                     INIT:
+(1)    7/     CCD :                     	;; Reset USART
+(1)    8/     CCD :                     ;	LD	A,00H
+(1)    9/     CCD :                     ;	OUT	(USARTC),A
+(1)   10/     CCD :                     ;	LD	A,00H
+(1)   11/     CCD :                     ;	OUT	(USARTC),A
+(1)   12/     CCD :                     ;	LD	A,00H
+(1)   13/     CCD :                     ;	OUT	(USARTC),A
+(1)   14/     CCD :                     ;	LD	A,40H
+(1)   15/     CCD :                     ;	OUT	(USARTC),A
+(1)   16/     CCD :                     
+(1)   17/     CCD :                     	;;
+(1)   18/     CCD :                     ;	LD	A,4EH
+(1)   19/     CCD :                     ;	OUT	(USARTC),A
+(1)   20/     CCD :                     
+(1)   21/     CCD :                     	;;
+(1)   22/     CCD :                     ;	LD	A,37H
+(1)   23/     CCD :                     ;	OUT	(USARTC),A
+(1)   24/     CCD :                     
+(1)   25/     CCD : C9                  	RET
+(1)   26/     CCE :                     
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm(dev_emuz80.asm) - Page 38 - 2023/01/06 14時27分15秒
+
+
+(1)   27/     CCE :                     CONIN:
+(1)   28/     CCE : 3A 01 E0            	LD	A,(USARTC)
+(1)   29/     CD1 :                     ;	AND	02H
+(1)   30/     CD1 : CB 47               	BIT	0,A
+(1)   31/     CD3 : 28 F9               	JR	Z,CONIN
+(1)   32/     CD5 : 3A 00 E0            	LD	A,(USARTD)
+(1)   33/     CD8 :                     
+(1)   34/     CD8 : C9                  	RET
+(1)   35/     CD9 :                     
+(1)   36/     CD9 :                     CONST:
+(1)   37/     CD9 : 3A 01 E0            	LD	A,(USARTC)
+(1)   38/     CDC :                     ;	AND	02H
+(1)   39/     CDC : CB 47               	BIT	0,A
+(1)   40/     CDE :                     
+(1)   41/     CDE : C9                  	RET
+(1)   42/     CDF :                     
+(1)   43/     CDF :                     CONOUT:
+(1)   44/     CDF : F5                  	PUSH	AF
+(1)   45/     CE0 : 3A 01 E0            COUT0:	LD	A,(USARTC)
+(1)   46/     CE3 :                     ;	AND	01H
+(1)   47/     CE3 : CB 4F               	BIT	1,A
+(1)   48/     CE5 : 28 F9               	JR	Z,COUT0
+(1)   49/     CE7 : F1                  	POP	AF
+(1)   50/     CE8 : 32 00 E0            	LD	(USARTD),A
+(1)   51/     CEB :                     
+(1)   52/     CEB : C9                  	RET
+(1)   53/     CEC :                     
+(1)   54/     CEC :                     
+    2014/     CEC : [2012]               	ENDIF
+    2015/     CEC :                     
+    2016/     CEC :                     ;;;
+    2017/     CEC :                     ;;; RAM area
+    2018/     CEC :                     ;;;
+    2019/     CEC :                     
+    2020/     CEC :                     	;;
+    2021/     CEC :                     	;; Work Area
+    2022/     CEC :                     	;;
+    2023/     CEC :                     
+    2024/    8F00 :                     	ORG	WORK_B
+    2025/    8F00 :                     
+    2026/    8F00 :                     INBUF:	DS	BUFLEN	; Line input buffer
+    2027/    8F10 :                     DSADDR:	DS	2	; Dump start address
+    2028/    8F12 :                     DEADDR:	DS	2	; Dump end address
+    2029/    8F14 :                     DSTATE:	DS	1	; Dump state
+    2030/    8F15 :                     GADDR:	DS	2	; Go address
+    2031/    8F17 :                     SADDR:	DS	2	; Set address
+    2032/    8F19 :                     HEXMOD:	DS	1	; HEX file mode
+    2033/    8F1A :                     RECTYP:	DS	1	; Record type
+    2034/    8F1B :                     PSPEC:	DS	1	; Processor spec.
+    2035/    8F1C :                     SIZE:	DS	1	; I/O Size 00H,'W','S'
+    2036/    8F1D :                     IOPAGE:	DS	1	; I/O Page (for Z280)
+    2037/    8F1E :                     
+    2038/    8F1E : =>TRUE               	IF USE_REGCMD
+    2039/    8F1E :                     
+    2040/    8F1E :                     REG_B:
+    2041/    8F1E :                     REGAF:	DS	2
+    2042/    8F20 :                     REGBC:	DS	2
+    2043/    8F22 :                     REGDE:	DS	2
+    2044/    8F24 :                     REGHL:	DS	2
+    2045/    8F26 :                     REGAFX:	DS	2		; Register AF'
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 39 - 2023/01/06 14時27分15秒
+
+
+    2046/    8F28 :                     REGBCX:	DS	2
+    2047/    8F2A :                     REGDEX:	DS	2
+    2048/    8F2C :                     REGHLX:	DS	2		; Register HL'
+    2049/    8F2E :                     REGIX:	DS	2
+    2050/    8F30 :                     REGIY:	DS	2
+    2051/    8F32 :                     REGSP:	DS	2
+    2052/    8F34 :                     REGPC:	DS	2
+    2053/    8F36 :                     REGI:	DS	1
+    2054/    8F37 :                     REGR:	DS	1
+    2055/    8F38 :                     REG_E:
+    2056/    8F38 : [2038]               	ENDIF
+    2057/    8F38 :                     
+    2058/    8F38 : =>FALSE              	IF USE_RAMCHK
+    2059/    8F38 :                     RAMEND:	DS	2
+    2060/    8F38 : [2058]               	ENDIF
+    2061/    8F38 :                     
+    2062/    8F38 :                     	END
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 40 - 2023/01/06 14時27分15秒
+
+
+  Symbol Table (* = unused):
+  --------------------------
+
+ API00 :                        920 C |  API01 :                        925 C |
+ API06 :                        929 C |  APITBL :                       912 C |
+*ARCHITECTURE :   "arm64-apple-osx" - |  BS :                             8 - |
+ BTCR_V :                        30 - |  BTIR_V :                        40 - |
+ BUFLEN :                        10 - | *CASESENSITIVE :                  0 - |
+ CCR1_V :                         0 - |  CCR_V :                          0 - |
+*COMPMODE :                       0 - |  CONIN :                       0CCE C |
+ CONOUT :                      0CDF C |  CONST :                       0CD9 C |
+*CONSTPI :        3.141592653589793 - |  COUT0 :                       0CE0 C |
+ CR :                            0D - |  CRLF :                         862 C |
+ CS0 :                          131 C |  CSTART :                       100 C |
+*CTS0_V :                        20 - | *DATE :                "2023/01/06" - |
+ DCNTL_V :                        0 - |  DEADDR :                      8F12 C |
+ DEL :                           7F - |  DP0 :                          28A C |
+ DP1 :                          2A2 C |  DPB :                          326 C |
+ DPB0 :                         33D C |  DPB1 :                         34C C |
+ DPB2 :                         351 C |  DPL :                          2EC C |
+ DPL0 :                         2FD C |  DPL1 :                         30D C |
+ DPL2 :                         31C C |  DPL3 :                         321 C |
+ DPM :                          2BA C |  DPM0 :                         2C5 C |
+ DPM1 :                         2E3 C |  DSADDR :                      8F10 C |
+ DSEP0 :                       0A43 C |  DSEP1 :                       0A46 C |
+ DSTATE :                      8F14 C |  DUMP :                         26C C |
+ ENTRY :                         80 - |  ERR :                          264 C |
+ ERRMSG :                      0A3B C | *E_CONIN :                      0A0 C |
+*E_CONOUT :                      90 C | *E_CONST :                      0A8 C |
+*E_CSTART :                      80 C | *E_STROUT :                      98 C |
+*E_WSTART :                      88 C | *FALSE :                          0 - |
+*FULLPMMU :                       1 - |  G0 :                           386 C |
+ G01 :                          3A4 C |  G1 :                           3AC C |
+ GADDR :                       8F15 C |  GETLIN :                       86C C |
+ GL0 :                          871 C |  GLB :                          89B C |
+ GLE :                          8B2 C |  GO :                           372 C |
+*HAS64 :                          1 - | *HASFPU :                         0 - |
+*HASPMMU :                        0 - |  HEXIN :                        83B C |
+ HEXMOD :                      8F19 C |  HEXOUT1 :                      82D C |
+ HEXOUT2 :                      824 C |  HEXOUT4 :                      81F C |
+ HI0 :                          843 C |  HI1 :                          85D C |
+ HIR :                          860 C |  IDE :                          1E1 C |
+ ID_180 :                       158 C |  ID_180Z :                      17A C |
+ ID_1960 :                      19B C |  ID_280 :                       1B3 C |
+ ID_NSC :                       1DC C |  ID_Z8S :                       1A7 C |
+ IHEMSG :                      0A21 C |  IHEXER :                      0A4A C |
+ IM180 :                       0A6B C |  IM180Z :                      0A76 C |
+ IM1960 :                      0A81 C |  IM280 :                       0A9A C |
+ IM80 :                        0A65 C |  IMNSC :                       0AA1 C |
+ IMZ8S :                       0A91 C |  INBUF :                       8F00 C |
+ INIT :                        0CCD C | *INSUPMODE :                      0 - |
+ IOBASE :                       0C0 - |  IOPAGE :                      8F1D C |
+ IR0 :                          205 C |  LF :                            0A - |
+ LH0 :                          466 C | *LH1 :                          470 C |
+ LH2 :                          474 C |  LH3 :                          47C C |
+ LHI0 :                         481 C |  LHI1 :                         49F C |
+ LHI2 :                         4B1 C |  LHI20 :                        4B0 C |
+ LHI3 :                         4B3 C |  LHIE :                         4C3 C |
+ LHS0 :                         4CC C |  LHS1 :                         4E9 C |
+ LHS2 :                         4FB C |  LHS20 :                        4FC C |
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 41 - 2023/01/06 14時27分15秒
+
+
+ LHS3 :                         4FE C |  LHSE :                         518 C |
+ LHSR :                         51E C | *LISTON :                         1 - |
+ LOADH :                        450 C | *MACEXP :                         7 - |
+*MOMCPU :                        80 - | *MOMCPUNAME :                 "Z80" - |
+*NESTMAX :                      100 - |  OMCR_V :                        40 - |
+ OPNMSG :                      0A04 C | *PADDING :                        1 - |
+ PB0 :                          74A C |  PBANK :                        728 C |
+ PI0 :                          616 C |  PI1 :                          61A C |
+ PIB :                          64C C |  PIN :                          5FE C |
+ PIS :                          685 C |  PIW :                          668 C |
+ PO0 :                          6A8 C |  PO1 :                          6AC C |
+ POB :                          6F1 C |  POS :                          722 C |
+ POUT :                         690 C |  POW :                          708 C |
+ PROMPT :                      0A1E C |  PSPEC :                       8F1B C |
+ R380 :                         988 C |  R381 :                         990 C |
+*RAM_B :                       9000 - |  RD0 :                          7E9 C |
+ RD1 :                          809 C |  RDHEX :                        8C8 C |
+ RDSA :                        0B10 C |  RDSAX :                       0B36 C |
+ RDSBC :                       0B14 C |  RDSBCX :                      0B3C C |
+ RDSDE :                       0B1A C |  RDSDEX :                      0B42 C |
+ RDSF :                        0B26 C |  RDSFX :                       0B4E C |
+ RDSHL :                       0B20 C |  RDSHLX :                      0B48 C |
+ RDSI :                        0B5E C |  RDSIX :                       0B2B C |
+ RDSIY :                       0B31 C |  RDSPC :                       0B59 C |
+ RDSR :                        0B62 C |  RDSSP :                       0B53 C |
+ RDTAB :                       0ABB C |  RDUMP :                        7E6 C |
+ RECTYP :                      8F1A C |  REG :                          756 C |
+ REGAF :                       8F1E C |  REGAFX :                      8F26 C |
+ REGBC :                       8F20 C |  REGBCX :                      8F28 C |
+ REGDE :                       8F22 C |  REGDEX :                      8F2A C |
+ REGHL :                       8F24 C |  REGHLX :                      8F2C C |
+ REGI :                        8F36 C |  REGIX :                       8F2E C |
+ REGIY :                       8F30 C |  REGPC :                       8F34 C |
+ REGR :                        8F37 C |  REGSP :                       8F32 C |
+ REG_B :                       8F1E C |  REG_E :                       8F38 C |
+*RELAXED :                        0 - |  RG0 :                          766 C |
+ RG1 :                          76A C |  RG2 :                          77A C |
+ RG3 :                          78C C |  RG4 :                          7B1 C |
+ RG5 :                          7BD C |  RG6 :                          7DD C |
+ RG7 :                          7E0 C |  RGE :                          7E3 C |
+ RGR :                          7E0 C |  RH0 :                          8CD C |
+ RH1 :                          8E3 C |  RHE :                          901 C |
+ RMR_V :                          0 - |  RNA :                         0C80 C |
+ RNAX :                        0C99 C |  RNB :                         0C85 C |
+ RNBC :                        0C82 C |  RNBCX :                       0C9C C |
+ RNBX :                        0CA0 C |  RNC :                         0C87 C |
+ RNCX :                        0CA3 C |  RND :                         0C8C C |
+ RNDE :                        0C89 C |  RNDEX :                       0CA6 C |
+ RNDX :                        0CAA C |  RNE :                         0C8E C |
+ RNEX :                        0CAD C |  RNF :                         0C97 C |
+ RNFX :                        0CBA C |  RNH :                         0C93 C |
+ RNHL :                        0C90 C |  RNHLX :                       0CB0 C |
+ RNHX :                        0CB4 C |  RNI :                         0CC9 C |
+ RNIX :                        0CBD C |  RNIY :                        0CC0 C |
+ RNL :                         0C95 C |  RNLX :                        0CB7 C |
+ RNPC :                        0CC6 C |  RNR :                         0CCB C |
+ RNSP :                        0CC3 C |  RNTAB :                       0B66 C |
+ RNTABA :                      0BB0 C |  RNTABB :                      0BBE C |
+ RNTABBC :                     0BD2 C |  RNTABC :                      0BE0 C |
+ RNTABD :                      0BEE C |  RNTABDE :                     0C02 C |
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 42 - 2023/01/06 14時27分15秒
+
+
+ RNTABE :                      0C10 C |  RNTABF :                      0C1E C |
+ RNTABH :                      0C2C C |  RNTABHL :                     0C40 C |
+ RNTABI :                      0C5C C |  RNTABL :                      0C4E C |
+ RNTABP :                      0C70 C |  RNTABS :                      0C78 C |
+ RRR_V :                         38 - |  RST30H :                       902 C |
+ RST38H :                       92D C |  RST38MSG :                    0AAA C |
+ SADDR :                       8F17 C |  SAVEH :                        521 C |
+ SETM :                         3E9 C |  SH0 :                          52E C |
+ SH1 :                          532 C |  SH2 :                          55C C |
+ SH3 :                          564 C |  SH4 :                          57B C |
+ SHE :                          559 C |  SHEMSG :                      0A2E C |
+ SHL :                          584 C |  SHL0 :                         58F C |
+ SHLI0 :                        5B8 C |  SHLS :                         5CC C |
+ SHLS0 :                        5EB C |  SIZE :                        8F1C C |
+ SKIPSP :                       8B8 C |  SM0 :                          400 C |
+ SM1 :                          401 C |  SM2 :                          42A C |
+ SM3 :                          435 C |  SM4 :                          440 C |
+ SRECER :                      0A58 C |  STACK :                       8FF0 - |
+ STROUT :                       816 C | *TARGET :                     "Z80" - |
+ TH0 :                          9E0 C |
+*TIME :               "14\-026\-103\-12627\-027\-120\-12215\-025\-089\-110" - |
+ TL :                           211 C |  TRAPH :                        99C C |
+ TRAPMSG :                     0AB4 C | *TRUE :                           1 - |
+ UPPER :                        8BF C |  USARTC :                     0E001 - |
+ USARTD :                     0E000 - |  USE_180TRAP :                    1 - |
+ USE_DEV_64180 :                  0 - |  USE_DEV_8251 :                   0 - |
+ USE_DEV_EMILY :                  0 - |  USE_DEV_EMUZ80 :                 1 - |
+ USE_DEV_NSC858 :                 0 - |  USE_DEV_Z280 :                   0 - |
+ USE_DEV_Z80SIO :                 0 - |  USE_IDENT :                      1 - |
+ USE_NEWAPI :                     1 - |  USE_RAMCHK :                     0 - |
+ USE_REGCMD :                     1 - |  USE_SPINIT :                     0 - |
+ USE_WARMUP :                     0 - | *VERSION :                     142F - |
+ WORK_B :                      8F00 - |  WSTART :                       223 C |
+
+    298 symbols
+     31 unused symbols
+
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 43 - 2023/01/06 14時27分15秒
+
+
+  Defined Functions:
+  ------------------
+
+HIGH                                  | LOW                                  
+
+ AS V1.42 Beta [Bld 229] - Source File unimon_z80.asm - Page 44 - 2023/01/06 14時27分15秒
+
+
+  Code Pages:
+  ----------
+
+STANDARD (0 changed characters)
+
+1 code page
+
+0.02 seconds assembly time
+
+   2276 lines source file
+      2 passes
+      0 errors
+      0 warnings
