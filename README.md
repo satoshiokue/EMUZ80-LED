@@ -35,7 +35,7 @@ EMUZ80技術資料8ページにしたがってPICに適合するemuz80led_Qxx.he
 またはArduino UNOを用いてPICを書き込みます。  
 https://github.com/satoshiokue/Arduino-PIC-Programmer
 
-BASIC
+BASIC  
 PIC18F47Q43 emuz80led_Q43.hex  
 PIC18F47Q83 emuz80led_Q8x.hex  
 PIC18F47Q84 emuz80led_Q8x.hex  
