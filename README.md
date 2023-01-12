@@ -46,9 +46,9 @@ PIC18F47Q83 emuz80led_DEMO_Q8x.hex
 PIC18F47Q84 emuz80led_DEMO_Q8x.hex  
 
 Universal Monitor Z80  
-PIC18F47Q43 emuz80led_DEMO_Q43.hex  
-PIC18F47Q83 emuz80led_DEMO_Q8x.hex  
-PIC18F47Q84 emuz80led_DEMO_Q8x.hex  
+PIC18F47Q43 emuz80led_unimon_Q43.hex  
+PIC18F47Q83 emuz80led_unimon_Q8x.hex 
+PIC18F47Q84 emuz80led_unimon_Q8x.hex  
 
 MITライセンスのUniversal MonitorをEMUZ80用に改変してhexファイル化しました。  
 Universal Monitor  
