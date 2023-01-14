@@ -120,13 +120,13 @@ UARTを選択するとバスの内容が「すべて」取得できます。
 0xF004 Display modeに0x01(=Select bank1)を書き込むと表示更新
 |Bit|7|6|5|4|3|2|1|0|
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Segment Line|DP|A|B|C|F|E|F|G|
+| Segment Line|DP|A|B|C|D|E|F|G|
 ## 0xF018 - 0xF01F No-Decode bank2
 1になったデータビットに対応したセグメントが点灯  
 0xF004 Display modeに0x02(=Select bank2)を書き込むと表示更新
 |Bit|7|6|5|4|3|2|1|0|
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Segment Line|DP|A|B|C|F|E|F|G|
+| Segment Line|DP|A|B|C|D|E|F|G|
 
 ## BASICによる制御例
 
